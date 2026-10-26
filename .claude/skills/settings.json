@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 30,
+            "command": "python -I \".claude/skills/standard-generated-english/scripts/sge_hook.py\" snapshot"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 60,
+            "command": "python -I \".claude/skills/standard-generated-english/scripts/sge_hook.py\" stop"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,7 @@
+[
+  {
+    "rule": "synonym-rotation",
+    "match": "confirmed",
+    "reason": "\"to be confirmed\" is the fixed label that TBC stands for in the BOM and cost report, not a synonym for check."
+  }
+]

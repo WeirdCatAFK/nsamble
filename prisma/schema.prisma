@@ -1,0 +1,297 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum ConversationKind {
+  MAIN
+  SUBAGENT
+}
+
+enum AgentRunStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum AgentToolCallStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum MessageRole {
+  SYSTEM
+  USER
+  ASSISTANT
+  TOOL
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String?  @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projects  Project[]
+  sessions  ConversationSession[]
+  usages    ModelUsage[]
+  agentRuns AgentRun[]
+  files     File[]
+
+  @@map("users")
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  ownerId     String
+  name        String
+  description String?
+  status      ProjectStatus @default(DRAFT)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  owner     User                  @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  parts     ProjectPart[]
+  sessions  ConversationSession[]
+  agentRuns AgentRun[]
+  files     File[]
+
+  @@index([ownerId, createdAt])
+  @@map("projects")
+}
+
+model ProjectPart {
+  id                  String   @id @default(cuid())
+  projectId           String
+  name                String
+  quantity            Int      @default(1)
+  material            String?
+  manufacturingMethod String?
+  specification       Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, createdAt])
+  @@map("project_parts")
+}
+
+model Model {
+  id                         String   @id @default(cuid())
+  slug                       String   @unique
+  provider                   String
+  inputPricePerMillion       Decimal  @db.Decimal(12, 6)
+  cachedInputPricePerMillion Decimal  @db.Decimal(12, 6)
+  outputPricePerMillion      Decimal  @db.Decimal(12, 6)
+  active                     Boolean  @default(true)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  sessions ConversationSession[]
+  usages   ModelUsage[]
+
+  @@map("models")
+}
+
+model ConversationSession {
+  id                 String           @id @default(cuid())
+  userId             String
+  projectId          String
+  modelId            String
+  parentSessionId    String?
+  kind               ConversationKind @default(MAIN)
+  previousResponseId String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  endedAt            DateTime?
+
+  user     User    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  model    Model   @relation(fields: [modelId], references: [id], onDelete: Restrict)
+  parent   ConversationSession?  @relation("SessionHierarchy", fields: [parentSessionId], references: [id], onDelete: Restrict)
+  children ConversationSession[] @relation("SessionHierarchy")
+
+  messages     ConversationMessage[]
+  usages       ModelUsage[] @relation("ExecutionSession")
+  billedUsages ModelUsage[] @relation("BillingSession")
+  parentRuns   AgentRun[]   @relation("ParentSession")
+  childRun     AgentRun?    @relation("ChildSession")
+  files        File[]
+
+  @@index([userId, projectId, createdAt])
+  @@index([parentSessionId])
+  @@map("conversation_sessions")
+}
+
+model AgentRun {
+  id              String         @id @default(cuid())
+  userId          String
+  projectId       String
+  parentSessionId String
+  childSessionId  String         @unique
+  role            String
+  status          AgentRunStatus @default(QUEUED)
+  input           Json
+  output          Json?
+  error           Json?
+  createdAt       DateTime       @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
+
+  user          User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  project       Project             @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  parentSession ConversationSession @relation("ParentSession", fields: [parentSessionId], references: [id], onDelete: Restrict)
+  childSession  ConversationSession @relation("ChildSession", fields: [childSessionId], references: [id], onDelete: Restrict)
+  usages        ModelUsage[]
+  toolCalls     AgentToolCall[]
+  files         File[]
+
+  @@index([projectId, createdAt])
+  @@index([parentSessionId, createdAt])
+  @@index([status, createdAt])
+  @@map("agent_runs")
+}
+
+model ModelUsage {
+  id                         String   @id @default(cuid())
+  userId                     String
+  modelId                    String
+  sessionId                  String
+  billingSessionId           String
+  agentRunId                 String?
+  providerResponseId         String?  @unique
+  inputTokens                Int
+  cachedInputTokens          Int      @default(0)
+  outputTokens               Int
+  uncachedInputCost          Decimal  @db.Decimal(20, 12)
+  cachedInputCost            Decimal  @db.Decimal(20, 12)
+  outputCost                 Decimal  @db.Decimal(20, 12)
+  totalCost                  Decimal  @db.Decimal(20, 12)
+  inputPricePerMillion       Decimal  @db.Decimal(12, 6)
+  cachedInputPricePerMillion Decimal  @db.Decimal(12, 6)
+  outputPricePerMillion      Decimal  @db.Decimal(12, 6)
+  currency                   String   @default("USD") @db.VarChar(3)
+  createdAt                  DateTime @default(now())
+
+  user           User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  model          Model               @relation(fields: [modelId], references: [id], onDelete: Restrict)
+  session        ConversationSession @relation("ExecutionSession", fields: [sessionId], references: [id], onDelete: Restrict)
+  billingSession ConversationSession @relation("BillingSession", fields: [billingSessionId], references: [id], onDelete: Restrict)
+  agentRun       AgentRun?           @relation(fields: [agentRunId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([modelId, createdAt])
+  @@index([sessionId, createdAt])
+  @@index([billingSessionId, createdAt])
+  @@index([agentRunId, createdAt])
+  @@map("model_usage")
+}
+
+model AgentToolCall {
+  id           String              @id @default(cuid())
+  agentRunId   String
+  name         String
+  status       AgentToolCallStatus @default(RUNNING)
+  input        Json
+  output       Json?
+  error        Json?
+  externalCost Decimal?            @db.Decimal(20, 12)
+  currency     String              @default("USD") @db.VarChar(3)
+  createdAt    DateTime            @default(now())
+  completedAt  DateTime?
+
+  agentRun AgentRun       @relation(fields: [agentRunId], references: [id], onDelete: Restrict)
+  sources  SearchSource[]
+
+  @@index([agentRunId, createdAt])
+  @@index([status, createdAt])
+  @@map("agent_tool_calls")
+}
+
+model SearchSource {
+  id          String   @id @default(cuid())
+  toolCallId  String
+  title       String?
+  url         String
+  snippet     String?
+  cited       Boolean  @default(false)
+  retrievedAt DateTime @default(now())
+
+  toolCall AgentToolCall @relation(fields: [toolCallId], references: [id], onDelete: Restrict)
+
+  @@unique([toolCallId, url])
+  @@index([url])
+  @@map("search_sources")
+}
+
+model ConversationMessage {
+  id         String      @id @default(cuid())
+  sessionId  String
+  role       MessageRole
+  content    Json
+  toolCallId String?
+  name       String?
+  createdAt  DateTime    @default(now())
+
+  session ConversationSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+
+  @@index([sessionId, createdAt])
+  @@map("conversation_messages")
+}
+
+model PriceCacheEntry {
+  id          String   @id @default(cuid())
+  partKey     String
+  region      String?
+  provider    String
+  unitPrice   Decimal  @db.Decimal(20, 6)
+  currency    String   @default("USD") @db.VarChar(3)
+  quantity    Int      @default(1)
+  metadata    Json?
+  retrievedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@unique([partKey, region, provider])
+  @@index([partKey, region])
+  @@map("price_cache_entries")
+}
+
+model File {
+  id          String   @id @default(cuid())
+  userId      String
+  projectId   String
+  sessionId   String?
+  agentRunId  String?
+  contentHash String   @db.Char(64)
+  name        String
+  mimeType    String?
+  size        Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user     User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  project  Project              @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  session  ConversationSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  agentRun AgentRun?            @relation(fields: [agentRunId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([sessionId, createdAt])
+  @@index([agentRunId, createdAt])
+  @@index([contentHash])
+  @@map("files")
+}

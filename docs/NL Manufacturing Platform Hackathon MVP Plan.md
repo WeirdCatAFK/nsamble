@@ -1,8 +1,6 @@
-# NL Manufacturing Platform — Hackathon MVP Plan
+# NL Manufacturing Platform Hackathon MVP Plan
 
-Oct 23, 2026 
-
-## Project overview
+Project overview
 
 This platform uses natural language to generate design prototypes for manufacturing. A user describes a part or an assembly. The system then generates the parametric files, 3D models, and technical documents.
 
@@ -561,18 +559,18 @@ A price from a web search is an approximation. The page can be old, or the price
 
 ## Technology stack
 
-| Layer                | Technology                          | Purpose                                               |
-| -------------------- | ----------------------------------- | ----------------------------------------------------- |
-| Frontend             | Next.js, Three.js                   | Web application and 3D assembly viewer                |
-| LLM orchestration    | MCP servers                         | Connection between LLM and manufacturing tools        |
-| 3D printing engine   | OpenSCAD in Docker                  | Parametric 3D model generation and STL compilation    |
-| Laser cutting engine | Python (SVG generation, ezdxf)      | Vector file generation and DXF conversion             |
-| Sheet metal engine   | CAD tool through MCP (to be selected) | 3D sheet metal model and DXF flat pattern            |
-| PCB engine (stretch) | KiCad Python API                    | Schematic and board layout generation                 |
-| Assembly engine      | JSON manifest, Three.js             | Part composition and 3D preview                       |
-| Price lookup         | Web search through MCP              | Current component prices with source and date         |
+| Layer                | Technology                            | Purpose                                               |
+| -------------------- | ------------------------------------- | ----------------------------------------------------- |
+| Frontend             | Next.js, Three.js                     | Web application and 3D assembly viewer                |
+| LLM orchestration    | MCP servers                           | Connection between LLM and manufacturing tools        |
+| 3D printing engine   | OpenSCAD in Docker                    | Parametric 3D model generation and STL compilation    |
+| Laser cutting engine | Python (SVG generation, ezdxf)        | Vector file generation and DXF conversion             |
+| Sheet metal engine   | CAD tool through MCP (to be selected) | 3D sheet metal model and DXF flat pattern             |
+| PCB engine (stretch) | KiCad Python API                      | Schematic and board layout generation                 |
+| Assembly engine      | JSON manifest, Three.js               | Part composition and 3D preview                       |
+| Price lookup         | Web search through MCP                | Current component prices with source and date         |
 | SGE compliance       | LLM rewriter, `sge_check.py`        | SGE enforcement on all text and code comments         |
-| Documentation        | Markdown to PDF (weasyprint)        | BOM, cost report, assembly guide, specification sheet |
-| Infrastructure       | Docker Compose                      | Container orchestration for all services              |
+| Documentation        | Markdown to PDF (weasyprint)          | BOM, cost report, assembly guide, specification sheet |
+| Infrastructure       | Docker Compose                        | Container orchestration for all services              |
 
 All containers run with Docker Compose for local development. The architecture is ready for Kubernetes if the project moves to production.

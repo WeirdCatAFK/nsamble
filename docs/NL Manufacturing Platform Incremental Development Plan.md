@@ -1,7 +1,5 @@
 # NL Manufacturing Platform — Incremental Development Plan
 
-Oct 23, 2026 · @Daniel Pineda Torres
-
 This plan divides the MVP into 10 phases. Each phase builds on the previous phase. Complete each phase before you start the next one. Each task references the functional requirement that it satisfies (e.g., FR-FE-001).
 
 ## Phase 1: Foundation

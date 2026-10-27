@@ -3,5 +3,35 @@
     "rule": "synonym-rotation",
     "match": "confirmed",
     "reason": "\"to be confirmed\" is the fixed label that TBC stands for in the BOM and cost report, not a synonym for check."
+  },
+  {
+    "path": "../.claude/plans/*.md",
+    "rule": "bold-text",
+    "reason": "Plan files are ephemeral working notes in the Claude plans directory, not project output."
+  },
+  {
+    "path": "../.claude/plans/*.md",
+    "rule": "avoid-word",
+    "reason": "Plan files are ephemeral working notes, not project output."
+  },
+  {
+    "path": "../.claude/plans/*.md",
+    "rule": "passive-voice",
+    "reason": "Plan files are ephemeral working notes, not project output."
+  },
+  {
+    "path": "../.claude/plans/*.md",
+    "rule": "long-sentence",
+    "reason": "Plan files are ephemeral working notes, not project output."
+  },
+  {
+    "path": "../.claude/plans/*.md",
+    "rule": "synonym-rotation",
+    "reason": "Plan files are ephemeral working notes, not project output."
+  },
+  {
+    "path": "../.claude/plans/*.md",
+    "rule": "paragraph-length",
+    "reason": "Plan files are ephemeral working notes, not project output."
   }
 ]

@@ -1,0 +1,32 @@
+{
+    "muse-wonder": {
+        "input_price": 4.00,
+        "cache_price": 0.20,
+        "output_price": 20.00
+    },
+    "muse-spark-1.3": {
+        "input_price": 1.25,
+        "cache_price": 0.15,
+        "output_price": 4.25
+    },
+    "muse-spark-1.3-contributor": {
+        "input_price": 0.10,
+        "cache_price": 0.002,
+        "output_price": 0.20
+    },
+    "muse-spark-1.2": {
+        "input_price": 1.25,
+        "cache_price": 0.15,
+        "output_price": 4.25
+    },
+    "muse-spark-1.2-contributor": {
+        "input_price": 0.10,
+        "cache_price": 0.002,
+        "output_price": 0.20
+    },
+    "muse-spark-1.1": {
+        "input_price": 1.25,
+        "cache_price": 0.15,
+        "output_price": 4.25
+    }
+}

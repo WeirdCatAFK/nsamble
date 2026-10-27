@@ -1,0 +1,6 @@
+minio.license
+tests/
+node_modules/
+models.json
+generated/
+.env

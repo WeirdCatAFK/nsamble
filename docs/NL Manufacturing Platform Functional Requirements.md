@@ -1,7 +1,5 @@
 # NL Manufacturing Platform Functional Requirements
 
-Oct 23, 2026
-
 This document lists every functional requirement for the MVP. Each requirement has a code, a description, a priority (Must / Should / Could), and an acceptance criterion. Requirements are grouped by system module.
 
 All generated text follows [Standard Generated English (SGE)](https://github.com/WeirdCatAFK/SGE). SGE is an approximation of ASD-STE100 for text and code comments that AI agents write.

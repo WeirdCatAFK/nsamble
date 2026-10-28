@@ -1,0 +1,82 @@
+[
+  {
+    "id": "usb-a-cutout",
+    "category": "connector",
+    "name": "USB Type-A Cutout",
+    "standard": "USB 2.0/3.0",
+    "dimensions": {
+      "width_mm": 13.1,
+      "height_mm": 5.7,
+      "depth_mm": 17.0,
+      "panel_cutout_width_mm": 13.5,
+      "panel_cutout_height_mm": 6.0,
+      "tolerance_mm": 0.2
+    }
+  },
+  {
+    "id": "usb-c-cutout",
+    "category": "connector",
+    "name": "USB Type-C Cutout",
+    "standard": "USB-C",
+    "dimensions": {
+      "width_mm": 8.94,
+      "height_mm": 3.26,
+      "depth_mm": 7.5,
+      "panel_cutout_width_mm": 9.5,
+      "panel_cutout_height_mm": 3.6,
+      "corner_radius_mm": 1.1,
+      "tolerance_mm": 0.2
+    }
+  },
+  {
+    "id": "rj45-cutout",
+    "category": "connector",
+    "name": "RJ45 Ethernet Cutout",
+    "dimensions": {
+      "width_mm": 15.9,
+      "height_mm": 13.1,
+      "depth_mm": 21.3,
+      "panel_cutout_width_mm": 16.5,
+      "panel_cutout_height_mm": 13.5,
+      "tolerance_mm": 0.3
+    }
+  },
+  {
+    "id": "hdmi-micro-cutout",
+    "category": "connector",
+    "name": "Micro HDMI Cutout",
+    "dimensions": {
+      "width_mm": 6.4,
+      "height_mm": 2.8,
+      "panel_cutout_width_mm": 7.0,
+      "panel_cutout_height_mm": 3.2,
+      "tolerance_mm": 0.2
+    }
+  },
+  {
+    "id": "barrel-jack-5521",
+    "category": "connector",
+    "name": "DC Barrel Jack 5.5x2.1mm Cutout",
+    "dimensions": {
+      "outer_diameter_mm": 5.5,
+      "inner_diameter_mm": 2.1,
+      "panel_hole_diameter_mm": 8.0,
+      "depth_mm": 14.0,
+      "tolerance_mm": 0.2
+    }
+  },
+  {
+    "id": "iec-c14-inlet",
+    "category": "connector",
+    "name": "IEC C14 Power Inlet Cutout",
+    "dimensions": {
+      "width_mm": 27.0,
+      "height_mm": 22.5,
+      "panel_cutout_width_mm": 27.5,
+      "panel_cutout_height_mm": 23.0,
+      "mounting_screw_spacing_mm": 40.0,
+      "mounting_screw_thread": "M3",
+      "tolerance_mm": 0.3
+    }
+  }
+]

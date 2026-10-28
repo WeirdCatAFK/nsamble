@@ -1,14 +1,24 @@
 import "./env.js";
 import express from "express";
+import { authenticate } from "./middlewares/auth.js";
 import healthRouter from "./routers/health.js";
-import testChatRouter from "./routers/test-chat.js";
+import authRouter from "./routers/auth.js";
+import projectsRouter from "./routers/projects.js";
+import conversationsRouter from "./routers/conversations.js";
+import filesRouter from "./routers/files.js";
+import agentsRouter from "./routers/agents.js";
 
 export function createApi() {
   const app = express();
 
   app.use(express.json());
   app.use(healthRouter);
-  app.use(testChatRouter);
+  app.use(authRouter);
+  app.use(authenticate);
+  app.use(projectsRouter);
+  app.use(conversationsRouter);
+  app.use(filesRouter);
+  app.use(agentsRouter);
   app.use((_request, response) => {
     response.status(404).json({ error: "Not found" });
   });

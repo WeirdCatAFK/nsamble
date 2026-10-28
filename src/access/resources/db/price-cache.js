@@ -21,6 +21,24 @@ export function findFreshPrice({ partKey, region = null }, database = prisma) {
   }
 }
 
+export function findFreshPrices({ partKeys, region = null }, database = prisma) {
+  try {
+    const cutoff = new Date(Date.now() - STALE_AFTER_DAYS * 86_400_000);
+
+    return database.priceCacheEntry.findMany({
+      where: {
+        partKey: { in: partKeys },
+        ...(region && { region }),
+        retrievedAt: { gte: cutoff },
+      },
+      orderBy: { retrievedAt: "desc" },
+      distinct: ["partKey"],
+    });
+  } catch (error) {
+    throw new Error(errLevel + error.message, { cause: error });
+  }
+}
+
 export function upsertPrice(
   {
     partKey,

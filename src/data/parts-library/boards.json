@@ -1,0 +1,82 @@
+[
+  {
+    "id": "microatx-motherboard",
+    "category": "board",
+    "name": "MicroATX Motherboard",
+    "standard": "ATX 2.2",
+    "dimensions": {
+      "width_mm": 244,
+      "height_mm": 244,
+      "pcb_thickness_mm": 1.6,
+      "mounting_holes": [
+        { "label": "F", "x_mm": 10.16, "y_mm": 6.35 },
+        { "label": "H", "x_mm": 10.16, "y_mm": 157.48 },
+        { "label": "J", "x_mm": 10.16, "y_mm": 218.44 },
+        { "label": "L", "x_mm": 165.10, "y_mm": 6.35 },
+        { "label": "M", "x_mm": 165.10, "y_mm": 157.48 },
+        { "label": "R", "x_mm": 165.10, "y_mm": 218.44 }
+      ],
+      "mounting_hole_thread": "M3",
+      "io_shield_width_mm": 158.75,
+      "io_shield_height_mm": 44.45
+    },
+    "referencePrice": { "amount": 80.00, "currency": "USD", "per": "unit" }
+  },
+  {
+    "id": "raspberry-pi-4",
+    "category": "board",
+    "name": "Raspberry Pi 4 Model B",
+    "dimensions": {
+      "width_mm": 85,
+      "height_mm": 56,
+      "pcb_thickness_mm": 1.4,
+      "max_component_height_mm": 16.0,
+      "mounting_holes": [
+        { "label": "BL", "x_mm": 3.5, "y_mm": 3.5 },
+        { "label": "BR", "x_mm": 61.5, "y_mm": 3.5 },
+        { "label": "TL", "x_mm": 3.5, "y_mm": 52.5 },
+        { "label": "TR", "x_mm": 61.5, "y_mm": 52.5 }
+      ],
+      "mounting_hole_diameter_mm": 2.7,
+      "mounting_hole_thread": "M2.5",
+      "ports": {
+        "usb_a_count": 2,
+        "usb3_count": 2,
+        "ethernet": true,
+        "hdmi_micro_count": 2,
+        "usb_c_power": true,
+        "gpio_pins": 40
+      }
+    },
+    "referencePrice": { "amount": 55.00, "currency": "USD", "per": "unit" }
+  },
+  {
+    "id": "raspberry-pi-5",
+    "category": "board",
+    "name": "Raspberry Pi 5",
+    "dimensions": {
+      "width_mm": 85,
+      "height_mm": 56,
+      "pcb_thickness_mm": 1.4,
+      "max_component_height_mm": 17.5,
+      "mounting_holes": [
+        { "label": "BL", "x_mm": 3.5, "y_mm": 3.5 },
+        { "label": "BR", "x_mm": 61.5, "y_mm": 3.5 },
+        { "label": "TL", "x_mm": 3.5, "y_mm": 52.5 },
+        { "label": "TR", "x_mm": 61.5, "y_mm": 52.5 }
+      ],
+      "mounting_hole_diameter_mm": 2.7,
+      "mounting_hole_thread": "M2.5",
+      "ports": {
+        "usb_a_count": 2,
+        "usb3_count": 2,
+        "ethernet": true,
+        "hdmi_micro_count": 2,
+        "usb_c_power": true,
+        "gpio_pins": 40,
+        "pcie": true
+      }
+    },
+    "referencePrice": { "amount": 60.00, "currency": "USD", "per": "unit" }
+  }
+]

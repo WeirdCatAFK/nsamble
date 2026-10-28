@@ -6,6 +6,14 @@ import { env, requireEnvironment } from "../../env.js";
 
 const errLevel = "Error at primitive level in access:";
 
+export class StorageError extends Error {
+  constructor(message, code) {
+    super(message);
+    this.name = "StorageError";
+    this.code = code;
+  }
+}
+
 let client = null;
 let bucket = null;
 

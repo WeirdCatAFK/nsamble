@@ -28,6 +28,11 @@ export const env = Object.freeze({
     host: optional("HOST", "0.0.0.0"),
     port: positiveInteger("PORT", 3000),
   }),
+  auth: Object.freeze({
+    jwtSecret: optional("JWT_SECRET"),
+    tokenExpiresIn: optional("JWT_EXPIRES_IN", "24h"),
+    googleClientId: optional("GOOGLE_CLIENT_ID"),
+  }),
   database: Object.freeze({
     url: optional("DATABASE_URL"),
   }),
@@ -41,6 +46,9 @@ export const env = Object.freeze({
   modelProvider: Object.freeze({
     apiKey: optional("MODEL_API_KEY"),
     baseUrl: optional("MODEL_API_BASE_URL", "https://api.meta.ai/v1"),
+  }),
+  openscad: Object.freeze({
+    url: optional("OPENSCAD_URL", "http://localhost:8080"),
   }),
 });
 

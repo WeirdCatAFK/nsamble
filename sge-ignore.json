@@ -33,5 +33,15 @@
     "path": "../.claude/plans/*.md",
     "rule": "paragraph-length",
     "reason": "Plan files are ephemeral working notes, not project output."
+  },
+  {
+    "path": "../.claude/plans/*.md",
+    "rule": "special-character",
+    "reason": "Plan files use markdown horizontal rules for section breaks."
+  },
+  {
+    "path": "../.claude/plans/*.md",
+    "rule": "semicolon",
+    "reason": "Plan files are ephemeral working notes, not project output."
   }
 ]

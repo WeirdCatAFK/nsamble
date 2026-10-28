@@ -1,13 +1,15 @@
 import { prisma } from "../../primitives/db.js";
-import { createAgentRun } from "../../resources/agent-runs.js";
+import { createAgentRun } from "../../resources/db/agent-runs.js";
 import {
   createConversationSession,
   findConversationSession,
-} from "../../resources/conversation-sessions.js";
+} from "../../resources/db/conversation-sessions.js";
 import {
   findActiveModelById,
   findActiveModelBySlug,
-} from "../../resources/models.js";
+} from "../../resources/db/models.js";
+
+const errLevel = "Error at module level in access:";
 
 export class SubagentError extends Error {
   constructor(message, code) {
@@ -25,55 +27,60 @@ export async function createSubagent({
   input,
   modelSlug,
 }) {
-  if (typeof role !== "string" || role.trim().length === 0) {
-    throw new SubagentError("Role must be a non-empty string.", "EROLE");
+  try {
+    if (typeof role !== "string" || role.trim().length === 0) {
+      throw new SubagentError("Role must be a non-empty string.", "EROLE");
+    }
+
+    return await prisma.$transaction(async (database) => {
+      const parentSession = await findConversationSession(
+        { id: parentSessionId, userId, projectId },
+        database,
+      );
+
+      if (!parentSession) {
+        throw new SubagentError("Parent session was not found.", "ESESSION");
+      }
+
+      if (parentSession.endedAt) {
+        throw new SubagentError("Parent session has ended.", "ESESSIONENDED");
+      }
+
+      const model = modelSlug
+        ? await findActiveModelBySlug(modelSlug, database)
+        : await findActiveModelById(parentSession.modelId, database);
+
+      if (!model) {
+        throw new SubagentError("Selected model is not active.", "EMODEL");
+      }
+
+      const childSession = await createConversationSession(
+        {
+          userId,
+          projectId,
+          modelId: model.id,
+          parentSessionId: parentSession.id,
+          kind: "SUBAGENT",
+        },
+        database,
+      );
+
+      const agentRun = await createAgentRun(
+        {
+          userId,
+          projectId,
+          parentSessionId: parentSession.id,
+          childSessionId: childSession.id,
+          role: role.trim(),
+          input,
+        },
+        database,
+      );
+
+      return { agentRun, childSession };
+    });
+  } catch (error) {
+    if (error instanceof SubagentError) throw error;
+    throw new Error(errLevel + " " + error.message, { cause: error });
   }
-
-  return prisma.$transaction(async (database) => {
-    const parentSession = await findConversationSession(
-      { id: parentSessionId, userId, projectId },
-      database,
-    );
-
-    if (!parentSession) {
-      throw new SubagentError("Parent session was not found.", "ESESSION");
-    }
-
-    if (parentSession.endedAt) {
-      throw new SubagentError("Parent session has ended.", "ESESSIONENDED");
-    }
-
-    const model = modelSlug
-      ? await findActiveModelBySlug(modelSlug, database)
-      : await findActiveModelById(parentSession.modelId, database);
-
-    if (!model) {
-      throw new SubagentError("Selected model is not active.", "EMODEL");
-    }
-
-    const childSession = await createConversationSession(
-      {
-        userId,
-        projectId,
-        modelId: model.id,
-        parentSessionId: parentSession.id,
-        kind: "SUBAGENT",
-      },
-      database,
-    );
-
-    const agentRun = await createAgentRun(
-      {
-        userId,
-        projectId,
-        parentSessionId: parentSession.id,
-        childSessionId: childSession.id,
-        role: role.trim(),
-        input,
-      },
-      database,
-    );
-
-    return { agentRun, childSession };
-  });
 }

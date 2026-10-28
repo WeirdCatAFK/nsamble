@@ -1,23 +1,24 @@
 import { Prisma } from "../../../generated/prisma/client.ts";
 import { prisma } from "../../primitives/db.js";
 import { createToolResponse } from "../../primitives/model-provider.js";
-import { findAgentRun, updateAgentRun } from "../../resources/agent-runs.js";
+import { findAgentRun, updateAgentRun } from "../../resources/db/agent-runs.js";
 import {
   createMessage,
   allMessagesBySession,
-} from "../../resources/conversation-messages.js";
+} from "../../resources/db/conversation-messages.js";
 import {
   advanceConversationSession,
-} from "../../resources/conversation-sessions.js";
-import { createModelUsage } from "../../resources/model-usages.js";
+} from "../../resources/db/conversation-sessions.js";
+import { createModelUsage } from "../../resources/db/model-usages.js";
 import {
   createAgentToolCall,
   completeAgentToolCall,
   failAgentToolCall,
-} from "../../resources/agent-tool-calls.js";
-import { createSearchSources } from "../../resources/agent-tool-calls.js";
+} from "../../resources/db/agent-tool-calls.js";
+import { createSearchSources } from "../../resources/db/agent-tool-calls.js";
 import { loadRole, getToolsForRole, buildToolsPayload } from "../../../agents/registry.js";
 
+const errLevel = "Error at module level in access:";
 const MAX_TOOL_ROUNDS = 10;
 
 export class SubagentRunError extends Error {
@@ -170,202 +171,207 @@ async function storeSearchData(agentRunId, toolCallRecord, output) {
 }
 
 export async function runSubagent({ agentRunId, userId, projectId }) {
-  const agentRun = await findAgentRun(
-    { id: agentRunId, userId, projectId },
-  );
-
-  if (!agentRun) {
-    throw new SubagentRunError("Agent run was not found.", "ENOTFOUND");
-  }
-
-  if (agentRun.status !== "QUEUED") {
-    throw new SubagentRunError(
-      `Agent run status is ${agentRun.status}, expected QUEUED.`,
-      "ESTATUS",
-    );
-  }
-
-  const session = agentRun.childSession;
-  const model = session.model;
-
-  await updateAgentRun({
-    id: agentRun.id,
-    data: { status: "RUNNING", startedAt: new Date() },
-  });
-
   try {
-    const role = await loadRole(agentRun.role);
-    const toolDefs = await getToolsForRole(agentRun.role);
-    const toolsPayload = await buildToolsPayload(agentRun.role);
-
-    const toolExecutors = new Map();
-    for (const tool of toolDefs) {
-      toolExecutors.set(tool.name, tool.execute);
-    }
-
-    await createMessage({
-      sessionId: session.id,
-      role: "SYSTEM",
-      content: { text: role.systemPrompt },
-    });
-
-    const userInput =
-      typeof agentRun.input === "string"
-        ? agentRun.input
-        : JSON.stringify(agentRun.input);
-
-    await createMessage({
-      sessionId: session.id,
-      role: "USER",
-      content: { text: userInput },
-    });
-
-    const input = [
-      { role: "system", content: role.systemPrompt },
-      { role: "user", content: userInput },
-    ];
-
-    let previousResponseId = session.previousResponseId;
-    let lastResponse = null;
-
-    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const response = await createToolResponse({
-        model: model.slug,
-        input: round === 0 ? input : undefined,
-        previousResponseId: round === 0 ? previousResponseId : lastResponse.id,
-        tools: toolsPayload,
-      });
-
-      lastResponse = response;
-      const usage = usageFromResponse(response.usage);
-      await recordUsage({ agentRun, session, model, usage });
-      await storeAssistantMessage(session.id, response);
-
-      await advanceConversationSession({
-        id: session.id,
-        userId,
-        projectId,
-        expectedUpdatedAt: session.updatedAt,
-        previousResponseId: response.id,
-      });
-
-      const webSearchCalls = extractWebSearchCalls(response.output);
-      for (const ws of webSearchCalls) {
-        const toolRecord = await createAgentToolCall({
-          agentRunId: agentRun.id,
-          name: "web_search",
-          status: "SUCCEEDED",
-          input: {},
-          output: { resultCount: ws.results?.length ?? 0 },
-          completedAt: new Date(),
-        });
-        await storeSearchData(agentRun.id, toolRecord, response.output);
-      }
-
-      const functionCalls = extractFunctionCalls(response.output);
-      if (functionCalls.length === 0) break;
-
-      const toolOutputs = [];
-
-      for (const call of functionCalls) {
-        const toolRecord = await createAgentToolCall({
-          agentRunId: agentRun.id,
-          name: call.name,
-          input: call.arguments ? JSON.parse(call.arguments) : {},
-        });
-
-        try {
-          const executor = toolExecutors.get(call.name);
-          if (!executor) {
-            throw new Error(`Tool ${call.name} is not registered.`);
-          }
-
-          const args = call.arguments ? JSON.parse(call.arguments) : {};
-          const result = await executor(args);
-
-          await completeAgentToolCall({
-            id: toolRecord.id,
-            data: { output: { result } },
-          });
-
-          await createMessage({
-            sessionId: session.id,
-            role: "TOOL",
-            content: { result },
-            toolCallId: call.call_id,
-            name: call.name,
-          });
-
-          toolOutputs.push({
-            type: "function_call_output",
-            call_id: call.call_id,
-            output: result,
-          });
-        } catch (toolError) {
-          const errorMessage = toolError.message ?? "Tool execution failed.";
-          await failAgentToolCall({
-            id: toolRecord.id,
-            error: { message: errorMessage },
-          });
-
-          await createMessage({
-            sessionId: session.id,
-            role: "TOOL",
-            content: { error: errorMessage },
-            toolCallId: call.call_id,
-            name: call.name,
-          });
-
-          toolOutputs.push({
-            type: "function_call_output",
-            call_id: call.call_id,
-            output: JSON.stringify({ error: errorMessage }),
-          });
-        }
-      }
-
-      const followUp = await createToolResponse({
-        model: model.slug,
-        input: toolOutputs,
-        previousResponseId: lastResponse.id,
-        tools: toolsPayload,
-      });
-
-      lastResponse = followUp;
-      const followUpUsage = usageFromResponse(followUp.usage);
-      await recordUsage({ agentRun, session, model, usage: followUpUsage });
-      await storeAssistantMessage(session.id, followUp);
-
-      const nextFunctionCalls = extractFunctionCalls(followUp.output);
-      if (nextFunctionCalls.length === 0) break;
-    }
-
-    const finalText = extractOutputText(lastResponse.output);
-
-    await updateAgentRun({
-      id: agentRun.id,
-      data: {
-        status: "SUCCEEDED",
-        output: { text: finalText },
-        completedAt: new Date(),
-      },
-    });
-
-    return { agentRun: { ...agentRun, status: "SUCCEEDED" }, output: finalText };
-  } catch (error) {
-    await updateAgentRun({
-      id: agentRun.id,
-      data: {
-        status: "FAILED",
-        error: { message: error.message },
-        completedAt: new Date(),
-      },
-    });
-
-    throw new SubagentRunError(
-      `Agent run failed: ${error.message}`,
-      "ERUNFAILED",
-      { cause: error },
+    const agentRun = await findAgentRun(
+      { id: agentRunId, userId, projectId },
     );
+
+    if (!agentRun) {
+      throw new SubagentRunError("Agent run was not found.", "ENOTFOUND");
+    }
+
+    if (agentRun.status !== "QUEUED") {
+      throw new SubagentRunError(
+        `Agent run status is ${agentRun.status}, expected QUEUED.`,
+        "ESTATUS",
+      );
+    }
+
+    const session = agentRun.childSession;
+    const model = session.model;
+
+    await updateAgentRun({
+      id: agentRun.id,
+      data: { status: "RUNNING", startedAt: new Date() },
+    });
+
+    try {
+      const role = await loadRole(agentRun.role);
+      const toolDefs = await getToolsForRole(agentRun.role);
+      const toolsPayload = await buildToolsPayload(agentRun.role);
+
+      const toolExecutors = new Map();
+      for (const tool of toolDefs) {
+        toolExecutors.set(tool.name, tool.execute);
+      }
+
+      await createMessage({
+        sessionId: session.id,
+        role: "SYSTEM",
+        content: { text: role.systemPrompt },
+      });
+
+      const userInput =
+        typeof agentRun.input === "string"
+          ? agentRun.input
+          : JSON.stringify(agentRun.input);
+
+      await createMessage({
+        sessionId: session.id,
+        role: "USER",
+        content: { text: userInput },
+      });
+
+      const input = [
+        { role: "system", content: role.systemPrompt },
+        { role: "user", content: userInput },
+      ];
+
+      let previousResponseId = session.previousResponseId;
+      let lastResponse = null;
+
+      for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+        const response = await createToolResponse({
+          model: model.slug,
+          input: round === 0 ? input : undefined,
+          previousResponseId: round === 0 ? previousResponseId : lastResponse.id,
+          tools: toolsPayload,
+        });
+
+        lastResponse = response;
+        const usage = usageFromResponse(response.usage);
+        await recordUsage({ agentRun, session, model, usage });
+        await storeAssistantMessage(session.id, response);
+
+        await advanceConversationSession({
+          id: session.id,
+          userId,
+          projectId,
+          expectedUpdatedAt: session.updatedAt,
+          previousResponseId: response.id,
+        });
+
+        const webSearchCalls = extractWebSearchCalls(response.output);
+        for (const ws of webSearchCalls) {
+          const toolRecord = await createAgentToolCall({
+            agentRunId: agentRun.id,
+            name: "web_search",
+            status: "SUCCEEDED",
+            input: {},
+            output: { resultCount: ws.results?.length ?? 0 },
+            completedAt: new Date(),
+          });
+          await storeSearchData(agentRun.id, toolRecord, response.output);
+        }
+
+        const functionCalls = extractFunctionCalls(response.output);
+        if (functionCalls.length === 0) break;
+
+        const toolOutputs = [];
+
+        for (const call of functionCalls) {
+          const toolRecord = await createAgentToolCall({
+            agentRunId: agentRun.id,
+            name: call.name,
+            input: call.arguments ? JSON.parse(call.arguments) : {},
+          });
+
+          try {
+            const executor = toolExecutors.get(call.name);
+            if (!executor) {
+              throw new Error(`Tool ${call.name} is not registered.`);
+            }
+
+            const args = call.arguments ? JSON.parse(call.arguments) : {};
+            const result = await executor(args);
+
+            await completeAgentToolCall({
+              id: toolRecord.id,
+              data: { output: { result } },
+            });
+
+            await createMessage({
+              sessionId: session.id,
+              role: "TOOL",
+              content: { result },
+              toolCallId: call.call_id,
+              name: call.name,
+            });
+
+            toolOutputs.push({
+              type: "function_call_output",
+              call_id: call.call_id,
+              output: result,
+            });
+          } catch (toolError) {
+            const errorMessage = toolError.message ?? "Tool execution failed.";
+            await failAgentToolCall({
+              id: toolRecord.id,
+              error: { message: errorMessage },
+            });
+
+            await createMessage({
+              sessionId: session.id,
+              role: "TOOL",
+              content: { error: errorMessage },
+              toolCallId: call.call_id,
+              name: call.name,
+            });
+
+            toolOutputs.push({
+              type: "function_call_output",
+              call_id: call.call_id,
+              output: JSON.stringify({ error: errorMessage }),
+            });
+          }
+        }
+
+        const followUp = await createToolResponse({
+          model: model.slug,
+          input: toolOutputs,
+          previousResponseId: lastResponse.id,
+          tools: toolsPayload,
+        });
+
+        lastResponse = followUp;
+        const followUpUsage = usageFromResponse(followUp.usage);
+        await recordUsage({ agentRun, session, model, usage: followUpUsage });
+        await storeAssistantMessage(session.id, followUp);
+
+        const nextFunctionCalls = extractFunctionCalls(followUp.output);
+        if (nextFunctionCalls.length === 0) break;
+      }
+
+      const finalText = extractOutputText(lastResponse.output);
+
+      await updateAgentRun({
+        id: agentRun.id,
+        data: {
+          status: "SUCCEEDED",
+          output: { text: finalText },
+          completedAt: new Date(),
+        },
+      });
+
+      return { agentRun: { ...agentRun, status: "SUCCEEDED" }, output: finalText };
+    } catch (error) {
+      await updateAgentRun({
+        id: agentRun.id,
+        data: {
+          status: "FAILED",
+          error: { message: error.message },
+          completedAt: new Date(),
+        },
+      });
+
+      throw new SubagentRunError(
+        `Agent run failed: ${error.message}`,
+        "ERUNFAILED",
+        { cause: error },
+      );
+    }
+  } catch (error) {
+    if (error instanceof SubagentRunError) throw error;
+    throw new Error(errLevel + " " + error.message, { cause: error });
   }
 }

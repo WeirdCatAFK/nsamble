@@ -6,14 +6,16 @@ import {
   createConversationSession,
   endConversationSession,
   findConversationSession,
-} from "../../resources/conversation-sessions.js";
+} from "../../resources/db/conversation-sessions.js";
 import {
   findActiveModelById,
   findActiveModelBySlug,
-} from "../../resources/models.js";
-import { createModelUsage } from "../../resources/model-usages.js";
-import { findProject } from "../../resources/projects.js";
-import { findUserById } from "../../resources/users.js";
+} from "../../resources/db/models.js";
+import { createModelUsage } from "../../resources/db/model-usages.js";
+import { findProject } from "../../resources/db/projects.js";
+import { findUserById } from "../../resources/db/users.js";
+
+const errLevel = "Error at module level in access:";
 
 export class ModelConversationError extends Error {
   constructor(message, code) {
@@ -74,25 +76,30 @@ function costsForUsage(model, usage) {
 }
 
 export async function startConversation({ userId, projectId, modelSlug }) {
-  const [user, project, model] = await Promise.all([
-    findUserById(userId),
-    findProject({ id: projectId, ownerId: userId }),
-    findActiveModelBySlug(modelSlug),
-  ]);
+  try {
+    const [user, project, model] = await Promise.all([
+      findUserById(userId),
+      findProject({ id: projectId, ownerId: userId }),
+      findActiveModelBySlug(modelSlug),
+    ]);
 
-  if (!user) {
-    throw new ModelConversationError("User was not found.", "EUSER");
+    if (!user) {
+      throw new ModelConversationError("User was not found.", "EUSER");
+    }
+
+    if (!model) {
+      throw new ModelConversationError("Model is not active.", "EMODEL");
+    }
+
+    if (!project) {
+      throw new ModelConversationError("Project was not found.", "EPROJECT");
+    }
+
+    return createConversationSession({ userId, projectId, modelId: model.id });
+  } catch (error) {
+    if (error instanceof ModelConversationError) throw error;
+    throw new Error(errLevel + " " + error.message, { cause: error });
   }
-
-  if (!model) {
-    throw new ModelConversationError("Model is not active.", "EMODEL");
-  }
-
-  if (!project) {
-    throw new ModelConversationError("Project was not found.", "EPROJECT");
-  }
-
-  return createConversationSession({ userId, projectId, modelId: model.id });
 }
 
 const MAX_TOOL_ROUNDS = 10;
@@ -120,148 +127,158 @@ export async function sendConversationInput({
   tools = [],
   toolExecutors = new Map(),
 }) {
-  if (typeof input !== "string" || input.trim().length === 0) {
-    throw new ModelConversationError(
-      "Input must be a non-empty string.",
-      "EINPUT",
-    );
-  }
+  try {
+    if (typeof input !== "string" || input.trim().length === 0) {
+      throw new ModelConversationError(
+        "Input must be a non-empty string.",
+        "EINPUT",
+      );
+    }
 
-  const session = await findConversationSession({
-    id: sessionId,
-    userId,
-    projectId,
-  });
+    const session = await findConversationSession({
+      id: sessionId,
+      userId,
+      projectId,
+    });
 
-  if (!session) {
-    throw new ModelConversationError(
-      "Conversation session was not found.",
-      "ESESSION",
-    );
-  }
+    if (!session) {
+      throw new ModelConversationError(
+        "Conversation session was not found.",
+        "ESESSION",
+      );
+    }
 
-  if (session.endedAt) {
-    throw new ModelConversationError(
-      "Conversation session has ended.",
-      "ESESSIONENDED",
-    );
-  }
+    if (session.endedAt) {
+      throw new ModelConversationError(
+        "Conversation session has ended.",
+        "ESESSIONENDED",
+      );
+    }
 
-  const model = await findActiveModelById(session.modelId);
+    const model = await findActiveModelById(session.modelId);
 
-  if (!model) {
-    throw new ModelConversationError("Model is not active.", "EMODEL");
-  }
+    if (!model) {
+      throw new ModelConversationError("Model is not active.", "EMODEL");
+    }
 
-  let lastResponse = await createToolResponse({
-    model: model.slug,
-    input,
-    previousResponseId: session.previousResponseId,
-    tools,
-  });
+    let lastResponse = await createToolResponse({
+      model: model.slug,
+      input,
+      previousResponseId: session.previousResponseId,
+      tools,
+    });
 
-  const allUsage = { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
+    const allUsage = { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
 
-  for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-    const usage = usageFromResponse(lastResponse.usage);
-    allUsage.inputTokens += usage.inputTokens;
-    allUsage.cachedInputTokens += usage.cachedInputTokens;
-    allUsage.outputTokens += usage.outputTokens;
+    for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+      const usage = usageFromResponse(lastResponse.usage);
+      allUsage.inputTokens += usage.inputTokens;
+      allUsage.cachedInputTokens += usage.cachedInputTokens;
+      allUsage.outputTokens += usage.outputTokens;
 
-    const functionCalls = extractFunctionCalls(lastResponse.output);
-    if (functionCalls.length === 0) break;
+      const functionCalls = extractFunctionCalls(lastResponse.output);
+      if (functionCalls.length === 0) break;
 
-    const toolOutputs = [];
-    for (const call of functionCalls) {
-      const executor = toolExecutors.get(call.name);
-      let result;
-      if (executor) {
-        try {
-          const args = call.arguments ? JSON.parse(call.arguments) : {};
-          result = await executor(args);
-        } catch (err) {
-          result = JSON.stringify({ error: err.message });
+      const toolOutputs = [];
+      for (const call of functionCalls) {
+        const executor = toolExecutors.get(call.name);
+        let result;
+        if (executor) {
+          try {
+            const args = call.arguments ? JSON.parse(call.arguments) : {};
+            result = await executor(args);
+          } catch (err) {
+            result = JSON.stringify({ error: err.message });
+          }
+        } else {
+          result = JSON.stringify({ error: `Tool ${call.name} is not available.` });
         }
-      } else {
-        result = JSON.stringify({ error: `Tool ${call.name} is not available.` });
+
+        toolOutputs.push({
+          type: "function_call_output",
+          call_id: call.call_id,
+          output: result,
+        });
       }
 
-      toolOutputs.push({
-        type: "function_call_output",
-        call_id: call.call_id,
-        output: result,
+      lastResponse = await createToolResponse({
+        model: model.slug,
+        input: toolOutputs,
+        previousResponseId: lastResponse.id,
+        tools,
       });
     }
 
-    lastResponse = await createToolResponse({
-      model: model.slug,
-      input: toolOutputs,
-      previousResponseId: lastResponse.id,
-      tools,
-    });
-  }
+    const finalUsage = usageFromResponse(lastResponse.usage);
+    allUsage.inputTokens += finalUsage.inputTokens;
+    allUsage.cachedInputTokens += finalUsage.cachedInputTokens;
+    allUsage.outputTokens += finalUsage.outputTokens;
 
-  const finalUsage = usageFromResponse(lastResponse.usage);
-  allUsage.inputTokens += finalUsage.inputTokens;
-  allUsage.cachedInputTokens += finalUsage.cachedInputTokens;
-  allUsage.outputTokens += finalUsage.outputTokens;
+    const costs = costsForUsage(model, allUsage);
 
-  const costs = costsForUsage(model, allUsage);
-
-  await prisma.$transaction(async (database) => {
-    await createModelUsage(
-      {
-        userId,
-        modelId: model.id,
-        sessionId: session.id,
-        billingSessionId: session.parentSessionId ?? session.id,
-        providerResponseId: lastResponse.id ?? null,
-        ...allUsage,
-        ...costs,
-      },
-      database,
-    );
-
-    const advanced = await advanceConversationSession(
-      {
-        id: session.id,
-        userId,
-        projectId,
-        expectedUpdatedAt: session.updatedAt,
-        previousResponseId: lastResponse.id,
-      },
-      database,
-    );
-
-    if (advanced.count !== 1) {
-      throw new ModelConversationError(
-        "Conversation session changed before this response could be stored.",
-        "ECONFLICT",
+    await prisma.$transaction(async (database) => {
+      await createModelUsage(
+        {
+          userId,
+          modelId: model.id,
+          sessionId: session.id,
+          billingSessionId: session.parentSessionId ?? session.id,
+          providerResponseId: lastResponse.id ?? null,
+          ...allUsage,
+          ...costs,
+        },
+        database,
       );
-    }
-  });
 
-  const text =
-    lastResponse.output_text ?? extractOutputText(lastResponse.output);
+      const advanced = await advanceConversationSession(
+        {
+          id: session.id,
+          userId,
+          projectId,
+          expectedUpdatedAt: session.updatedAt,
+          previousResponseId: lastResponse.id,
+        },
+        database,
+      );
 
-  return {
-    responseId: lastResponse.id,
-    text,
-    usage: { ...allUsage, ...costs },
-  };
+      if (advanced.count !== 1) {
+        throw new ModelConversationError(
+          "Conversation session changed before this response could be stored.",
+          "ECONFLICT",
+        );
+      }
+    });
+
+    const text =
+      lastResponse.output_text ?? extractOutputText(lastResponse.output);
+
+    return {
+      responseId: lastResponse.id,
+      text,
+      usage: { ...allUsage, ...costs },
+    };
+  } catch (error) {
+    if (error instanceof ModelConversationError) throw error;
+    throw new Error(errLevel + " " + error.message, { cause: error });
+  }
 }
 
 export async function endConversation({ userId, projectId, sessionId }) {
-  const ended = await endConversationSession({
-    id: sessionId,
-    userId,
-    projectId,
-  });
+  try {
+    const ended = await endConversationSession({
+      id: sessionId,
+      userId,
+      projectId,
+    });
 
-  if (ended.count !== 1) {
-    throw new ModelConversationError(
-      "Conversation session was not found.",
-      "ESESSION",
-    );
+    if (ended.count !== 1) {
+      throw new ModelConversationError(
+        "Conversation session was not found.",
+        "ESESSION",
+      );
+    }
+  } catch (error) {
+    if (error instanceof ModelConversationError) throw error;
+    throw new Error(errLevel + " " + error.message, { cause: error });
   }
 }

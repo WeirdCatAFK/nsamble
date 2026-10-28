@@ -3,14 +3,14 @@ import { readFile } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { prisma } from "../access/primitives/db.js";
-import { upsertModel } from "../access/resources/models.js";
+import { upsertModel } from "../access/resources/db/models.js";
 import {
   startConversation,
   sendConversationInput,
 } from "../access/modules/common/model-conversations.js";
 import { createSubagent } from "../access/modules/agents/create-subagent.js";
 import { runSubagent } from "../access/modules/agents/run-subagent.js";
-import { allMessagesBySession } from "../access/resources/conversation-messages.js";
+import { allMessagesBySession } from "../access/resources/db/conversation-messages.js";
 import { buildAllTools, getAllToolExecutors } from "../agents/registry.js";
 
 const baseDir = dirname(fileURLToPath(import.meta.url));

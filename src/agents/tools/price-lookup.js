@@ -1,5 +1,5 @@
 /** Look up a part price from the cache or parts library. */
-import { findFreshPrice } from "../../access/resources/price-cache.js";
+import { findFreshPrice } from "../../access/resources/db/price-cache.js";
 
 export const name = "price_lookup";
 

@@ -1,25 +1,39 @@
 import OpenAI from "openai";
 import { env, requireEnvironment } from "../../env.js";
 
+const errLevel = "Error at primitive level in access:";
+
 let client = null;
 
 function getClient() {
-  if (client) return client;
+  try {
+    if (client) return client;
 
-  requireEnvironment("MODEL_API_KEY");
-  client = new OpenAI({
-    baseURL: env.modelProvider.baseUrl,
-    apiKey: env.modelProvider.apiKey,
-  });
-  return client;
+    requireEnvironment("MODEL_API_KEY");
+    client = new OpenAI({
+      baseURL: env.modelProvider.baseUrl,
+      apiKey: env.modelProvider.apiKey,
+    });
+    return client;
+  } catch (error) {
+    throw new Error(errLevel + " " + error.message, {
+      cause: error,
+    });
+  }
 }
 
 export async function createModelResponse({ model, input, previousResponseId }) {
-  return getClient().responses.create({
-    model,
-    input,
-    ...(previousResponseId && { previous_response_id: previousResponseId }),
-  });
+  try {
+    return getClient().responses.create({
+      model,
+      input,
+      ...(previousResponseId && { previous_response_id: previousResponseId }),
+    });
+  } catch (error) {
+    throw new Error(errLevel + " " + error.message, {
+      cause: error,
+    });
+  }
 }
 
 export async function createToolResponse({
@@ -28,11 +42,16 @@ export async function createToolResponse({
   previousResponseId,
   tools = [],
 }) {
-  return getClient().responses.create({
-    model,
-    input,
-    tools,
-    include: ["web_search_call.results"],
-    ...(previousResponseId && { previous_response_id: previousResponseId }),
-  });
+  try {
+    return getClient().responses.create({
+      model,
+      input,
+      tools,
+      ...(previousResponseId && { previous_response_id: previousResponseId }),
+    });
+  } catch (error) {
+    throw new Error(errLevel + " " + error.message, {
+      cause: error,
+    });
+  }
 }

@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { prisma } from "../src/access/primitives/db.js";
-import { upsertModel } from "../src/access/resources/models.js";
+import { upsertModel } from "../src/access/resources/db/models.js";
 
 const models = JSON.parse(
   await readFile(new URL("../models.json", import.meta.url), "utf8"),

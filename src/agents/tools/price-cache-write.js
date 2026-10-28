@@ -1,5 +1,5 @@
 /** Store a price found through web search into the cache. */
-import { upsertPrice } from "../../access/resources/price-cache.js";
+import { upsertPrice } from "../../access/resources/db/price-cache.js";
 
 export const name = "price_cache_write";
 

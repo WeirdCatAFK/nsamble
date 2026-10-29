@@ -2,7 +2,7 @@ import { Router } from "express";
 import multer from "multer";
 import { getFile, getFileContent, uploadFile } from "../access/modules/common/files.js";
 import { listFiles } from "../access/resources/db/files.js";
-import { createPart } from "../access/resources/db/parts.js";
+import { createPart, listParts } from "../access/resources/db/parts.js";
 import { parseBoundingBox } from "../access/modules/common/stl-dimensions.js";
 
 const router = Router();
@@ -59,6 +59,18 @@ router.get(
       );
 
       stream.pipe(response);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  "/api/projects/:projectId/parts",
+  async (request, response, next) => {
+    try {
+      const parts = await listParts({ projectId: request.params.projectId });
+      response.json(parts);
     } catch (error) {
       next(error);
     }

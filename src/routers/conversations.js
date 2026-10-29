@@ -58,6 +58,8 @@ router.post(
         return response.status(400).json({ error: "message is required." });
       }
 
+      const wantsStream = request.headers.accept === "text/event-stream";
+
       setAgentContext({
         userId: request.user.id,
         projectId: request.params.projectId,
@@ -67,18 +69,47 @@ router.post(
       const tools = await buildAllTools();
       const toolExecutors = await getAllToolExecutors();
 
-      const result = await sendConversationInput({
-        userId: request.user.id,
-        projectId: request.params.projectId,
-        sessionId: request.params.sessionId,
-        input: message,
-        tools,
-        toolExecutors,
-      });
+      if (wantsStream) {
+        response.setHeader("Content-Type", "text/event-stream");
+        response.setHeader("Cache-Control", "no-cache");
+        response.setHeader("Connection", "keep-alive");
+        response.flushHeaders();
 
-      response.json(result);
+        const onEvent = (event) => {
+          response.write(`data: ${JSON.stringify(event)}\n\n`);
+        };
+
+        const result = await sendConversationInput({
+          userId: request.user.id,
+          projectId: request.params.projectId,
+          sessionId: request.params.sessionId,
+          input: message,
+          tools,
+          toolExecutors,
+          onEvent,
+        });
+
+        response.write(`data: ${JSON.stringify({ type: "done", ...result })}\n\n`);
+        response.end();
+      } else {
+        const result = await sendConversationInput({
+          userId: request.user.id,
+          projectId: request.params.projectId,
+          sessionId: request.params.sessionId,
+          input: message,
+          tools,
+          toolExecutors,
+        });
+
+        response.json(result);
+      }
     } catch (error) {
-      next(error);
+      if (response.headersSent) {
+        response.write(`data: ${JSON.stringify({ type: "error", message: error.message })}\n\n`);
+        response.end();
+      } else {
+        next(error);
+      }
     }
   },
 );

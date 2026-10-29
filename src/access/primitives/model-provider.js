@@ -41,12 +41,14 @@ export async function createToolResponse({
   input,
   previousResponseId,
   tools = [],
+  instructions,
 }) {
   try {
     return getClient().responses.create({
       model,
       input,
       tools,
+      ...(instructions && { instructions }),
       ...(previousResponseId && { previous_response_id: previousResponseId }),
     });
   } catch (error) {

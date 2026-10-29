@@ -15,6 +15,7 @@ import {
 import { createModelUsage } from "../../resources/db/model-usages.js";
 import { findProject } from "../../resources/db/projects.js";
 import { findUserById } from "../../resources/db/users.js";
+import { loadRole } from "../../../agents/registry.js";
 
 const errLevel = "Error at module level in access:";
 
@@ -127,6 +128,7 @@ export async function sendConversationInput({
   input,
   tools = [],
   toolExecutors = new Map(),
+  onEvent = () => {},
 }) {
   try {
     if (typeof input !== "string" || input.trim().length === 0) {
@@ -164,12 +166,31 @@ export async function sendConversationInput({
 
     await createMessage({ sessionId: session.id, role: "USER", content: { text: input } });
 
-    let lastResponse = await createToolResponse({
-      model: model.slug,
-      input,
-      previousResponseId: session.previousResponseId,
-      tools,
-    });
+    const orchestrator = await loadRole("orchestrator");
+
+    onEvent({ type: "status", message: "Reasoning..." });
+
+    let lastResponse;
+    try {
+      lastResponse = await createToolResponse({
+        model: model.slug,
+        input,
+        previousResponseId: session.previousResponseId,
+        tools,
+        instructions: orchestrator.systemPrompt,
+      });
+    } catch (err) {
+      if (session.previousResponseId && /referenced response|not found|expired/i.test(err.message)) {
+        lastResponse = await createToolResponse({
+          model: model.slug,
+          input,
+          tools,
+          instructions: orchestrator.systemPrompt,
+        });
+      } else {
+        throw err;
+      }
+    }
 
     const allUsage = { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
 
@@ -182,27 +203,56 @@ export async function sendConversationInput({
       const functionCalls = extractFunctionCalls(lastResponse.output);
       if (functionCalls.length === 0) break;
 
-      const toolOutputs = [];
+      const reasoning = extractOutputText(lastResponse.output);
+
+      if (reasoning) {
+        onEvent({ type: "reasoning", text: reasoning, round: round + 1 });
+      }
+
+      const roundCalls = [];
+
       for (const call of functionCalls) {
+        const args = call.arguments ? JSON.parse(call.arguments) : {};
+        onEvent({ type: "tool_start", name: call.name, args, round: round + 1 });
+
         const executor = toolExecutors.get(call.name);
         let result;
+        let error = null;
         if (executor) {
           try {
-            const args = call.arguments ? JSON.parse(call.arguments) : {};
             result = await executor(args);
           } catch (err) {
+            error = err.message;
             result = JSON.stringify({ error: err.message });
           }
         } else {
-          result = JSON.stringify({ error: `Tool ${call.name} is not available.` });
+          error = `Tool ${call.name} is not available.`;
+          result = JSON.stringify({ error });
         }
 
-        toolOutputs.push({
+        const truncated = typeof result === "string" && result.length > 500
+          ? result.slice(0, 500) + "..."
+          : result;
+
+        roundCalls.push({ name: call.name, args, result: truncated, error });
+        onEvent({ type: "tool_end", name: call.name, args, result: truncated, error, round: round + 1 });
+
+        call._toolOutput = {
           type: "function_call_output",
           call_id: call.call_id,
           output: result,
-        });
+        };
       }
+
+      await createMessage({
+        sessionId: session.id,
+        role: "TOOL",
+        content: { round: round + 1, reasoning, calls: roundCalls },
+      });
+
+      const toolOutputs = functionCalls.map((c) => c._toolOutput);
+
+      onEvent({ type: "status", message: `Analyzing results (round ${round + 2})...` });
 
       lastResponse = await createToolResponse({
         model: model.slug,

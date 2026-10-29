@@ -8,6 +8,7 @@ export const name = "scan_object";
 
 export const description =
   "Run the photogrammetry scanner on a video file already uploaded to the project. " +
+  "The video must follow the .scan.<ext> naming convention (e.g. battery.scan.mp4). " +
   "Extracts frames, detects markers, reconstructs a dense point cloud, meshes it, " +
   "and imports the resulting STL back into the project as a part with bounding box dimensions.";
 
@@ -27,6 +28,7 @@ export const parameters = {
   additionalProperties: false,
 };
 
+const SCAN_PATTERN = /^(.+)\.scan\.\w+$/i;
 const POLL_INTERVAL_MS = 3000;
 const MAX_POLL_ATTEMPTS = 200;
 
@@ -54,6 +56,16 @@ export async function execute({ fileId, partName }) {
 
   const { file, stream } = await getFileContent({ id: fileId, userId: uid, projectId: pid });
 
+  const match = SCAN_PATTERN.exec(file.name);
+  if (!match) {
+    return JSON.stringify({
+      error: `File "${file.name}" does not follow the scan naming convention. `
+        + "Rename it to <name>.scan.<ext> (e.g. battery.scan.mp4).",
+    });
+  }
+
+  const derivedName = partName || match[1];
+
   const chunks = [];
   for await (const chunk of stream) chunks.push(chunk);
   const videoBuffer = Buffer.concat(chunks);
@@ -80,7 +92,7 @@ export async function execute({ fileId, partName }) {
   }
 
   const stlBuffer = Buffer.from(await modelRes.arrayBuffer());
-  const stlName = `${partName || file.name.replace(/\.[^.]+$/, "")}.stl`;
+  const stlName = `${derivedName}.stl`;
 
   const stlFile = await uploadFile({
     userId: uid,
@@ -94,7 +106,7 @@ export async function execute({ fileId, partName }) {
 
   const part = await createPart({
     projectId: pid,
-    name: partName || stlName.replace(/\.stl$/i, ""),
+    name: derivedName,
     manufacturingMethod: "scanned",
     specification: dimensions,
   });

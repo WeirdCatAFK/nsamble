@@ -18,6 +18,21 @@ export function createConversationSession(
   }
 }
 
+export function listSessionsByProject(
+  { userId, projectId, kind = "MAIN" },
+  database = prisma,
+) {
+  try {
+    return database.conversationSession.findMany({
+      where: { userId, projectId, kind },
+      orderBy: { updatedAt: "desc" },
+      include: { model: true },
+    });
+  } catch (error) {
+    throw new Error(errLevel + " " + error.message, { cause: error });
+  }
+}
+
 export function findConversationSession(
   { id, userId, projectId },
   database = prisma,

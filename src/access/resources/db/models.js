@@ -2,6 +2,18 @@ import { prisma } from "../../primitives/db.js";
 
 const errLevel = "Error at resource level in access:";
 
+export function findAllActiveModels(database = prisma) {
+  try {
+    return database.model.findMany({
+      where: { active: true },
+      select: { id: true, slug: true, provider: true },
+      orderBy: { slug: "asc" },
+    });
+  } catch (error) {
+    throw new Error(errLevel + error.message, { cause: error });
+  }
+}
+
 export function findActiveModelBySlug(slug, database = prisma) {
   try {
     return database.model.findFirst({

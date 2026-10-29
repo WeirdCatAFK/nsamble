@@ -3,6 +3,7 @@ import {
   createProject,
   findProject,
   listProjects,
+  updateProject,
 } from "../access/resources/db/projects.js";
 
 const router = Router();
@@ -31,6 +32,22 @@ router.get("/api/projects", async (request, response, next) => {
   try {
     const projects = await listProjects({ ownerId: request.user.id });
     response.json(projects);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch("/api/projects/:id", async (request, response, next) => {
+  try {
+    const { name, description } = request.body;
+    const result = await updateProject({
+      id: request.params.id,
+      ownerId: request.user.id,
+      name,
+      description,
+    });
+    if (result.count === 0) return response.status(404).json({ error: "Project not found." });
+    response.json({ ok: true });
   } catch (error) {
     next(error);
   }

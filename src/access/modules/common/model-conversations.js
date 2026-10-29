@@ -7,6 +7,7 @@ import {
   endConversationSession,
   findConversationSession,
 } from "../../resources/db/conversation-sessions.js";
+import { createMessage } from "../../resources/db/conversation-messages.js";
 import {
   findActiveModelById,
   findActiveModelBySlug,
@@ -161,6 +162,8 @@ export async function sendConversationInput({
       throw new ModelConversationError("Model is not active.", "EMODEL");
     }
 
+    await createMessage({ sessionId: session.id, role: "USER", content: { text: input } });
+
     let lastResponse = await createToolResponse({
       model: model.slug,
       input,
@@ -251,6 +254,10 @@ export async function sendConversationInput({
 
     const text =
       lastResponse.output_text ?? extractOutputText(lastResponse.output);
+
+    if (text) {
+      await createMessage({ sessionId: session.id, role: "ASSISTANT", content: { text } });
+    }
 
     return {
       responseId: lastResponse.id,

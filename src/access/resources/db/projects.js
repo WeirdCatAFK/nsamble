@@ -22,6 +22,20 @@ export function findProject({ id, ownerId }, database = prisma) {
   }
 }
 
+export function updateProject({ id, ownerId, name, description }, database = prisma) {
+  try {
+    return database.project.updateMany({
+      where: { id, ownerId },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(description !== undefined && { description }),
+      },
+    });
+  } catch (error) {
+    throw new Error(errLevel + error.message, { cause: error });
+  }
+}
+
 export function listProjects({ ownerId }, database = prisma) {
   try {
     return database.project.findMany({

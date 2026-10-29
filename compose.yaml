@@ -10,6 +10,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-secretpassword}@postgres:5432/${POSTGRES_DB:-nsamble}
       MINIO_ENDPOINT: http://minio:9000
       OPENSCAD_URL: http://openscad:8080
+      SCANNER_URL: http://scanner:8000
     depends_on:
       postgres:
         condition: service_healthy
@@ -59,6 +60,27 @@ services:
     command:
       - mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}" && mc mb --ignore-existing "local/$${MINIO_DOCUMENTS_BUCKET}"
 
+  scanner:
+    build:
+      context: https://github.com/WeirdCatAFK/nsamble-scanner.git
+    restart: unless-stopped
+    volumes:
+      - scanner-data:/data
+    ports:
+      - "8000:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   openscad:
     build:
       context: ./containers/openscad
@@ -90,3 +112,4 @@ services:
 
 volumes:
   pgdata:
+  scanner-data:

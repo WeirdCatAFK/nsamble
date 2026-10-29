@@ -4,10 +4,26 @@ import {
   sendConversationInput,
 } from "../access/modules/common/model-conversations.js";
 import { allMessagesBySession } from "../access/resources/db/conversation-messages.js";
+import { listSessionsByProject } from "../access/resources/db/conversation-sessions.js";
 import { buildAllTools, getAllToolExecutors } from "../agents/registry.js";
 import { setAgentContext } from "../agents/context.js";
 
 const router = Router();
+
+router.get(
+  "/api/projects/:projectId/conversations",
+  async (request, response, next) => {
+    try {
+      const sessions = await listSessionsByProject({
+        userId: request.user.id,
+        projectId: request.params.projectId,
+      });
+      response.json(sessions);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 router.post(
   "/api/projects/:projectId/conversations",

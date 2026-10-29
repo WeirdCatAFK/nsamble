@@ -78,5 +78,45 @@
     "path": "../../.claude/projects/*/memory/*.md",
     "rule": "synonym-rotation",
     "reason": "Memory files are internal notes, not project output."
+  },
+  {
+    "path": "../../../../.claude/plans/*.md",
+    "rule": "bold-text",
+    "reason": "Plan files are ephemeral working notes, not project output."
+  },
+  {
+    "path": "../../../../.claude/plans/*.md",
+    "rule": "passive-voice",
+    "reason": "Plan files are ephemeral working notes, not project output."
+  },
+  {
+    "path": "../../../../.claude/plans/*.md",
+    "rule": "special-character",
+    "reason": "Plan files are ephemeral working notes, not project output."
+  },
+  {
+    "path": "../../../../.claude/plans/*.md",
+    "rule": "synonym-rotation",
+    "reason": "Plan files are ephemeral working notes, not project output."
+  },
+  {
+    "path": "../../../../.claude/plans/*.md",
+    "rule": "long-sentence",
+    "reason": "Plan files are ephemeral working notes, not project output."
+  },
+  {
+    "path": "../../../../.claude/plans/*.md",
+    "rule": "avoid-word",
+    "reason": "Plan files are ephemeral working notes, not project output."
+  },
+  {
+    "path": "../../../../.claude/plans/*.md",
+    "rule": "semicolon",
+    "reason": "Plan files are ephemeral working notes, not project output."
+  },
+  {
+    "path": "../../../../.claude/plans/*.md",
+    "rule": "paragraph-length",
+    "reason": "Plan files are ephemeral working notes, not project output."
   }
 ]

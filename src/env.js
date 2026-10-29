@@ -50,6 +50,9 @@ export const env = Object.freeze({
   openscad: Object.freeze({
     url: optional("OPENSCAD_URL", "http://localhost:8080"),
   }),
+  kicad: Object.freeze({
+    url: optional("KICAD_URL", "http://localhost:8081"),
+  }),
   scanner: Object.freeze({
     url: optional("SCANNER_URL", "http://localhost:8000"),
   }),

@@ -28,7 +28,7 @@ export const name = "lookup_library_part";
 export const description =
   "Search the standard parts library for hardware with known dimensions. " +
   "Returns matching parts with full specifications. " +
-  "Use this before writing OpenSCAD to get correct hole sizes, mounting positions, and clearances.";
+  "Use this before writing OpenSCAD or KiCad files to get correct hole sizes, mounting positions, clearances, and component footprints.";
 
 export const parameters = {
   type: "object",

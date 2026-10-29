@@ -45,6 +45,10 @@ export async function execute({ script, filename = "output" }) {
 
   const output = { errors: result.errors, warnings: result.warnings };
 
+  if (result.validation) {
+    output.validation = result.validation;
+  }
+
   if (result.stl && uid && pid) {
     const stlBuffer = Buffer.from(result.stl, "base64");
     const stlFile = await uploadFile({
@@ -58,7 +62,24 @@ export async function execute({ script, filename = "output" }) {
     output.stlFileName = stlFile.name;
   }
 
-  if (result.png && uid && pid) {
+  if (result.pngs && uid && pid) {
+    output.pngFileIds = {};
+    for (const [viewName, pngB64] of Object.entries(result.pngs)) {
+      const pngBuffer = Buffer.from(pngB64, "base64");
+      const pngFile = await uploadFile({
+        userId: uid,
+        projectId: pid,
+        name: `${filename}_${viewName}.png`,
+        mimeType: "image/png",
+        source: pngBuffer,
+      });
+      output.pngFileIds[viewName] = pngFile.id;
+    }
+    if (output.pngFileIds.isometric) {
+      output.pngFileId = output.pngFileIds.isometric;
+      output.pngFileName = `${filename}_isometric.png`;
+    }
+  } else if (result.png && uid && pid) {
     const pngBuffer = Buffer.from(result.png, "base64");
     const pngFile = await uploadFile({
       userId: uid,

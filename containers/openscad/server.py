@@ -6,6 +6,21 @@ import tempfile
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
+try:
+    import trimesh
+    HAS_TRIMESH = True
+except ImportError:
+    HAS_TRIMESH = False
+
+VIEWS = {
+    "front":     "--camera=0,0,0,90,0,0,0",
+    "right":     "--camera=0,0,0,90,0,270,0",
+    "top":       "--camera=0,0,0,0,0,0,0",
+    "isometric": "--camera=0,0,0,55,0,25,0",
+}
+
+MAX_VALIDATE_BYTES = 20_000_000
+
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path != "/compile":
@@ -20,7 +35,6 @@ class Handler(BaseHTTPRequestHandler):
         with tempfile.TemporaryDirectory() as tmp:
             scad_path = os.path.join(tmp, f"{filename}.scad")
             stl_path = os.path.join(tmp, f"{filename}.stl")
-            png_path = os.path.join(tmp, f"{filename}.png")
 
             with open(scad_path, "w") as f:
                 f.write(script)
@@ -30,15 +44,22 @@ class Handler(BaseHTTPRequestHandler):
                 capture_output=True, text=True, timeout=60,
             )
 
-            png_result = subprocess.run(
-                ["openscad", "--render", "-o", png_path,
-                 "--imgsize=800,600", scad_path],
-                capture_output=True, text=True, timeout=60,
-            )
+            pngs = {}
+            for view_name, camera_arg in VIEWS.items():
+                view_png = os.path.join(tmp, f"{filename}_{view_name}.png")
+                subprocess.run(
+                    ["xvfb-run", "-a", "openscad", "--render", "-o", view_png,
+                     camera_arg, "--imgsize=800,600", scad_path],
+                    capture_output=True, text=True, timeout=60,
+                )
+                if os.path.exists(view_png):
+                    with open(view_png, "rb") as f:
+                        pngs[view_name] = base64.b64encode(f.read()).decode()
 
             result = {
                 "stl": None,
-                "png": None,
+                "png": pngs.get("isometric"),
+                "pngs": pngs,
                 "errors": [],
                 "warnings": [],
             }
@@ -49,9 +70,21 @@ class Handler(BaseHTTPRequestHandler):
                 with open(stl_path, "rb") as f:
                     result["stl"] = base64.b64encode(f.read()).decode()
 
-            if os.path.exists(png_path):
-                with open(png_path, "rb") as f:
-                    result["png"] = base64.b64encode(f.read()).decode()
+                if HAS_TRIMESH and os.path.getsize(stl_path) < MAX_VALIDATE_BYTES:
+                    try:
+                        mesh = trimesh.load(stl_path)
+                        result["validation"] = {
+                            "is_watertight": bool(mesh.is_watertight),
+                            "is_volume": bool(mesh.is_volume),
+                            "volume_mm3": round(float(mesh.volume), 2) if mesh.is_volume else None,
+                            "bounding_box": [round(float(d), 3) for d in mesh.bounding_box.extents],
+                            "face_count": len(mesh.faces),
+                            "vertex_count": len(mesh.vertices),
+                            "euler_number": int(mesh.euler_number),
+                            "has_degenerate_faces": bool(len(mesh.degenerate_faces) > 0) if hasattr(mesh, "degenerate_faces") else None,
+                        }
+                    except Exception as e:
+                        result["validation"] = {"error": str(e)}
 
             if stl_result.stderr and stl_result.returncode == 0:
                 for line in stl_result.stderr.strip().splitlines():

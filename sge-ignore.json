@@ -43,5 +43,40 @@
     "path": "../.claude/plans/*.md",
     "rule": "semicolon",
     "reason": "Plan files are ephemeral working notes, not project output."
+  },
+  {
+    "path": "**/.claude/plans/*.md",
+    "rule": "bold-text",
+    "reason": "Plan files in any .claude/plans directory are ephemeral working notes, not project output."
+  },
+  {
+    "path": "**/.claude/plans/*.md",
+    "rule": "special-character",
+    "reason": "Plan files in any .claude/plans directory use markdown horizontal rules for section breaks."
+  },
+  {
+    "path": "**/.claude/plans/*.md",
+    "rule": "long-sentence",
+    "reason": "Plan files in any .claude/plans directory are ephemeral working notes, not project output."
+  },
+  {
+    "path": "**/.claude/plans/*.md",
+    "rule": "synonym-rotation",
+    "reason": "Plan files in any .claude/plans directory are ephemeral working notes, not project output."
+  },
+  {
+    "path": "../../.claude/projects/*/memory/*.md",
+    "rule": "special-character",
+    "reason": "Memory files are internal notes, not project output. Em-dash style matches existing index format."
+  },
+  {
+    "path": "../../.claude/projects/*/memory/*.md",
+    "rule": "avoid-word",
+    "reason": "Memory files are internal notes, not project output."
+  },
+  {
+    "path": "../../.claude/projects/*/memory/*.md",
+    "rule": "synonym-rotation",
+    "reason": "Memory files are internal notes, not project output."
   }
 ]

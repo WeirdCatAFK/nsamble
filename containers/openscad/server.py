@@ -31,65 +31,84 @@ class Handler(BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(length))
         script = body.get("script", "")
         filename = body.get("filename", "output")
+        output_format = body.get("output_format", "stl")
 
         with tempfile.TemporaryDirectory() as tmp:
             scad_path = os.path.join(tmp, f"{filename}.scad")
-            stl_path = os.path.join(tmp, f"{filename}.stl")
 
             with open(scad_path, "w") as f:
                 f.write(script)
 
-            stl_result = subprocess.run(
-                ["openscad", "-o", stl_path, scad_path],
-                capture_output=True, text=True, timeout=60,
-            )
-
-            pngs = {}
-            for view_name, camera_arg in VIEWS.items():
-                view_png = os.path.join(tmp, f"{filename}_{view_name}.png")
-                subprocess.run(
-                    ["xvfb-run", "-a", "openscad", "--render", "-o", view_png,
-                     camera_arg, "--imgsize=800,600", scad_path],
+            if output_format == "svg":
+                svg_path = os.path.join(tmp, f"{filename}.svg")
+                svg_result = subprocess.run(
+                    ["openscad", "-o", svg_path, scad_path],
                     capture_output=True, text=True, timeout=60,
                 )
-                if os.path.exists(view_png):
-                    with open(view_png, "rb") as f:
-                        pngs[view_name] = base64.b64encode(f.read()).decode()
+                result = {"svg": None, "errors": [], "warnings": []}
+                if svg_result.returncode != 0:
+                    result["errors"].append(svg_result.stderr.strip())
+                elif os.path.exists(svg_path):
+                    with open(svg_path, "rb") as f:
+                        result["svg"] = base64.b64encode(f.read()).decode()
+                if svg_result.stderr and svg_result.returncode == 0:
+                    for line in svg_result.stderr.strip().splitlines():
+                        if "WARNING" in line:
+                            result["warnings"].append(line)
+            else:
+                stl_path = os.path.join(tmp, f"{filename}.stl")
 
-            result = {
-                "stl": None,
-                "png": pngs.get("isometric"),
-                "pngs": pngs,
-                "errors": [],
-                "warnings": [],
-            }
+                stl_result = subprocess.run(
+                    ["openscad", "-o", stl_path, scad_path],
+                    capture_output=True, text=True, timeout=60,
+                )
 
-            if stl_result.returncode != 0:
-                result["errors"].append(stl_result.stderr.strip())
-            elif os.path.exists(stl_path):
-                with open(stl_path, "rb") as f:
-                    result["stl"] = base64.b64encode(f.read()).decode()
+                pngs = {}
+                for view_name, camera_arg in VIEWS.items():
+                    view_png = os.path.join(tmp, f"{filename}_{view_name}.png")
+                    subprocess.run(
+                        ["xvfb-run", "-a", "openscad", "--render", "-o", view_png,
+                         camera_arg, "--imgsize=800,600", scad_path],
+                        capture_output=True, text=True, timeout=60,
+                    )
+                    if os.path.exists(view_png):
+                        with open(view_png, "rb") as f:
+                            pngs[view_name] = base64.b64encode(f.read()).decode()
 
-                if HAS_TRIMESH and os.path.getsize(stl_path) < MAX_VALIDATE_BYTES:
-                    try:
-                        mesh = trimesh.load(stl_path)
-                        result["validation"] = {
-                            "is_watertight": bool(mesh.is_watertight),
-                            "is_volume": bool(mesh.is_volume),
-                            "volume_mm3": round(float(mesh.volume), 2) if mesh.is_volume else None,
-                            "bounding_box": [round(float(d), 3) for d in mesh.bounding_box.extents],
-                            "face_count": len(mesh.faces),
-                            "vertex_count": len(mesh.vertices),
-                            "euler_number": int(mesh.euler_number),
-                            "has_degenerate_faces": bool(len(mesh.degenerate_faces) > 0) if hasattr(mesh, "degenerate_faces") else None,
-                        }
-                    except Exception as e:
-                        result["validation"] = {"error": str(e)}
+                result = {
+                    "stl": None,
+                    "png": pngs.get("isometric"),
+                    "pngs": pngs,
+                    "errors": [],
+                    "warnings": [],
+                }
 
-            if stl_result.stderr and stl_result.returncode == 0:
-                for line in stl_result.stderr.strip().splitlines():
-                    if "WARNING" in line:
-                        result["warnings"].append(line)
+                if stl_result.returncode != 0:
+                    result["errors"].append(stl_result.stderr.strip())
+                elif os.path.exists(stl_path):
+                    with open(stl_path, "rb") as f:
+                        result["stl"] = base64.b64encode(f.read()).decode()
+
+                    if HAS_TRIMESH and os.path.getsize(stl_path) < MAX_VALIDATE_BYTES:
+                        try:
+                            mesh = trimesh.load(stl_path)
+                            result["validation"] = {
+                                "is_watertight": bool(mesh.is_watertight),
+                                "is_volume": bool(mesh.is_volume),
+                                "volume_mm3": round(float(mesh.volume), 2) if mesh.is_volume else None,
+                                "bounding_box": [round(float(d), 3) for d in mesh.bounding_box.extents],
+                                "face_count": len(mesh.faces),
+                                "vertex_count": len(mesh.vertices),
+                                "euler_number": int(mesh.euler_number),
+                                "has_degenerate_faces": bool(len(mesh.degenerate_faces) > 0) if hasattr(mesh, "degenerate_faces") else None,
+                            }
+                        except Exception as e:
+                            result["validation"] = {"error": str(e)}
+
+                if stl_result.stderr and stl_result.returncode == 0:
+                    for line in stl_result.stderr.strip().splitlines():
+                        if "WARNING" in line:
+                            result["warnings"].append(line)
 
             payload = json.dumps(result).encode()
             self.send_response(200)

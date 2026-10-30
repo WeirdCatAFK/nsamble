@@ -170,6 +170,9 @@ export async function sendConversationInput({
 
     onEvent({ type: "status", message: "Reasoning..." });
 
+    const isExpiredResponse = (err) =>
+      /referenced response|not found|expired/i.test(err.message);
+
     let lastResponse;
     try {
       lastResponse = await createToolResponse({
@@ -180,7 +183,7 @@ export async function sendConversationInput({
         instructions: orchestrator.systemPrompt,
       });
     } catch (err) {
-      if (session.previousResponseId && /referenced response|not found|expired/i.test(err.message)) {
+      if (session.previousResponseId && isExpiredResponse(err)) {
         lastResponse = await createToolResponse({
           model: model.slug,
           input,
@@ -193,6 +196,7 @@ export async function sendConversationInput({
     }
 
     const allUsage = { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
+    const conversationLog = [{ role: "user", content: input }];
 
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
       const usage = usageFromResponse(lastResponse.usage);
@@ -251,15 +255,32 @@ export async function sendConversationInput({
       });
 
       const toolOutputs = functionCalls.map((c) => c._toolOutput);
+      conversationLog.push(
+        { role: "assistant", content: reasoning ?? "" },
+        ...toolOutputs.map((t) => ({ role: "tool", tool_call_id: t.call_id, content: t.output })),
+      );
 
       onEvent({ type: "status", message: `Analyzing results (round ${round + 2})...` });
 
-      lastResponse = await createToolResponse({
-        model: model.slug,
-        input: toolOutputs,
-        previousResponseId: lastResponse.id,
-        tools,
-      });
+      try {
+        lastResponse = await createToolResponse({
+          model: model.slug,
+          input: toolOutputs,
+          previousResponseId: lastResponse.id,
+          tools,
+        });
+      } catch (err) {
+        if (isExpiredResponse(err)) {
+          lastResponse = await createToolResponse({
+            model: model.slug,
+            input: conversationLog,
+            tools,
+            instructions: orchestrator.systemPrompt,
+          });
+        } else {
+          throw err;
+        }
+      }
     }
 
     const finalUsage = usageFromResponse(lastResponse.usage);

@@ -35,7 +35,7 @@ export async function execute({ role, input, modelSlug }) {
     return JSON.stringify({ error: "Agent context was not set." });
   }
 
-  const { userId, projectId, parentSessionId } = ctx;
+  const { userId, projectId, parentSessionId, onEvent } = ctx;
 
   const { agentRun } = await createSubagent({
     userId,
@@ -50,6 +50,7 @@ export async function execute({ role, input, modelSlug }) {
     agentRunId: agentRun.id,
     userId,
     projectId,
+    onEvent,
   });
 
   return JSON.stringify({

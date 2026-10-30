@@ -170,7 +170,7 @@ async function storeSearchData(agentRunId, toolCallRecord, output) {
   }
 }
 
-export async function runSubagent({ agentRunId, userId, projectId }) {
+export async function runSubagent({ agentRunId, userId, projectId, onEvent = () => {} }) {
   try {
     const agentRun = await findAgentRun(
       { id: agentRunId, userId, projectId },
@@ -227,31 +227,45 @@ export async function runSubagent({ agentRunId, userId, projectId }) {
         { role: "user", content: userInput },
       ];
 
-      let previousResponseId = session.previousResponseId;
-      let lastResponse = null;
+      const isExpiredResponse = (err) =>
+        /referenced response|not found|expired/i.test(err.message);
 
-      for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-        const response = await createToolResponse({
+      const conversationLog = [...input];
+
+      let lastResponse;
+      try {
+        lastResponse = await createToolResponse({
           model: model.slug,
-          input: round === 0 ? input : undefined,
-          previousResponseId: round === 0 ? previousResponseId : lastResponse.id,
+          input,
+          previousResponseId: session.previousResponseId,
           tools: toolsPayload,
         });
+      } catch (err) {
+        if (session.previousResponseId && isExpiredResponse(err)) {
+          lastResponse = await createToolResponse({
+            model: model.slug,
+            input,
+            tools: toolsPayload,
+          });
+        } else {
+          throw err;
+        }
+      }
 
-        lastResponse = response;
-        const usage = usageFromResponse(response.usage);
+      for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+        const usage = usageFromResponse(lastResponse.usage);
         await recordUsage({ agentRun, session, model, usage });
-        await storeAssistantMessage(session.id, response);
+        await storeAssistantMessage(session.id, lastResponse);
 
         await advanceConversationSession({
           id: session.id,
           userId,
           projectId,
           expectedUpdatedAt: session.updatedAt,
-          previousResponseId: response.id,
+          previousResponseId: lastResponse.id,
         });
 
-        const webSearchCalls = extractWebSearchCalls(response.output);
+        const webSearchCalls = extractWebSearchCalls(lastResponse.output);
         for (const ws of webSearchCalls) {
           const toolRecord = await createAgentToolCall({
             agentRunId: agentRun.id,
@@ -261,19 +275,22 @@ export async function runSubagent({ agentRunId, userId, projectId }) {
             output: { resultCount: ws.results?.length ?? 0 },
             completedAt: new Date(),
           });
-          await storeSearchData(agentRun.id, toolRecord, response.output);
+          await storeSearchData(agentRun.id, toolRecord, lastResponse.output);
         }
 
-        const functionCalls = extractFunctionCalls(response.output);
+        const functionCalls = extractFunctionCalls(lastResponse.output);
         if (functionCalls.length === 0) break;
 
         const toolOutputs = [];
 
         for (const call of functionCalls) {
+          const args = call.arguments ? JSON.parse(call.arguments) : {};
+          onEvent({ type: "subagent_tool_start", role: agentRun.role, name: call.name, args });
+
           const toolRecord = await createAgentToolCall({
             agentRunId: agentRun.id,
             name: call.name,
-            input: call.arguments ? JSON.parse(call.arguments) : {},
+            input: args,
           });
 
           try {
@@ -282,7 +299,6 @@ export async function runSubagent({ agentRunId, userId, projectId }) {
               throw new Error(`Tool ${call.name} is not registered.`);
             }
 
-            const args = call.arguments ? JSON.parse(call.arguments) : {};
             const result = await executor(args);
 
             await completeAgentToolCall({
@@ -303,6 +319,8 @@ export async function runSubagent({ agentRunId, userId, projectId }) {
               call_id: call.call_id,
               output: result,
             });
+
+            onEvent({ type: "subagent_tool_end", role: agentRun.role, name: call.name });
           } catch (toolError) {
             const errorMessage = toolError.message ?? "Tool execution failed.";
             await failAgentToolCall({
@@ -323,23 +341,35 @@ export async function runSubagent({ agentRunId, userId, projectId }) {
               call_id: call.call_id,
               output: JSON.stringify({ error: errorMessage }),
             });
+
+            onEvent({ type: "subagent_tool_end", role: agentRun.role, name: call.name, error: errorMessage });
           }
         }
 
-        const followUp = await createToolResponse({
-          model: model.slug,
-          input: toolOutputs,
-          previousResponseId: lastResponse.id,
-          tools: toolsPayload,
-        });
+        const assistantText = extractOutputText(lastResponse.output);
+        conversationLog.push(
+          { role: "assistant", content: assistantText ?? "" },
+          ...toolOutputs.map((t) => ({ role: "tool", tool_call_id: t.call_id, content: t.output })),
+        );
 
-        lastResponse = followUp;
-        const followUpUsage = usageFromResponse(followUp.usage);
-        await recordUsage({ agentRun, session, model, usage: followUpUsage });
-        await storeAssistantMessage(session.id, followUp);
-
-        const nextFunctionCalls = extractFunctionCalls(followUp.output);
-        if (nextFunctionCalls.length === 0) break;
+        try {
+          lastResponse = await createToolResponse({
+            model: model.slug,
+            input: toolOutputs,
+            previousResponseId: lastResponse.id,
+            tools: toolsPayload,
+          });
+        } catch (err) {
+          if (isExpiredResponse(err)) {
+            lastResponse = await createToolResponse({
+              model: model.slug,
+              input: conversationLog,
+              tools: toolsPayload,
+            });
+          } else {
+            throw err;
+          }
+        }
       }
 
       const finalText = extractOutputText(lastResponse.output);

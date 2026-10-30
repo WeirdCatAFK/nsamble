@@ -24,7 +24,7 @@ function getClient() {
 
 export async function createModelResponse({ model, input, previousResponseId }) {
   try {
-    return getClient().responses.create({
+    return await getClient().responses.create({
       model,
       input,
       ...(previousResponseId && { previous_response_id: previousResponseId }),
@@ -44,7 +44,7 @@ export async function createToolResponse({
   instructions,
 }) {
   try {
-    return getClient().responses.create({
+    return await getClient().responses.create({
       model,
       input,
       tools,

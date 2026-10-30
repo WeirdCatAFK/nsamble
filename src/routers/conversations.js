@@ -6,7 +6,7 @@ import {
 import { allMessagesBySession } from "../access/resources/db/conversation-messages.js";
 import { listSessionsByProject } from "../access/resources/db/conversation-sessions.js";
 import { buildAllTools, getAllToolExecutors } from "../agents/registry.js";
-import { setAgentContext } from "../agents/context.js";
+import { setAgentContext, getAgentContext } from "../agents/context.js";
 
 const router = Router();
 
@@ -78,6 +78,8 @@ router.post(
         const onEvent = (event) => {
           response.write(`data: ${JSON.stringify(event)}\n\n`);
         };
+
+        getAgentContext().onEvent = onEvent;
 
         const result = await sendConversationInput({
           userId: request.user.id,

@@ -16,7 +16,9 @@ export const parameters = {
     },
     filename: {
       type: "string",
-      description: "File name with extension (e.g. 'bom.json').",
+      description:
+        "File name with extension. Use folder prefixes to keep output organized " +
+        "(e.g. 'cad/bracket.stl', 'docs/notes.md', 'reports/bom.md').",
     },
     mimeType: {
       type: "string",
@@ -36,10 +38,20 @@ export async function execute({ content, filename, mimeType }) {
     return JSON.stringify({ error: "userId and projectId are required." });
   }
 
+  const clean = String(filename ?? "")
+    .replace(/\\/g, "/")
+    .split("/")
+    .filter((part) => part && part !== "." && part !== "..")
+    .join("/");
+
+  if (!clean) {
+    return JSON.stringify({ error: "filename is required." });
+  }
+
   const file = await uploadFile({
     userId: uid,
     projectId: pid,
-    name: filename,
+    name: clean,
     mimeType: mimeType ?? "application/octet-stream",
     source: content,
   });

@@ -6,7 +6,7 @@ export const name = "delegate_to_agent";
 
 export const description =
   "Delegate a task to a specialist agent. " +
-  "Available roles: geometry-generator, electronics-designer, dfm-reviewer, assembly-planner, cost-estimator, sge-writer. " +
+  "Available roles: geometry-generator, electronics-designer, prototype-engineer, dfm-reviewer, assembly-planner, cost-estimator, sge-writer. " +
   "Pass a clear task description as input. The agent runs to completion and returns its output.";
 
 export const parameters = {

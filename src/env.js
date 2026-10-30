@@ -53,6 +53,9 @@ export const env = Object.freeze({
   kicad: Object.freeze({
     url: optional("KICAD_URL", "http://localhost:8081"),
   }),
+  wiring: Object.freeze({
+    url: optional("WIRING_DIAGRAM_URL", "http://localhost:8082"),
+  }),
   scanner: Object.freeze({
     url: optional("SCANNER_URL", "http://localhost:8000"),
   }),

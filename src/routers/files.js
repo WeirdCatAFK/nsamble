@@ -24,6 +24,20 @@ router.get(
   },
 );
 
+router.get("/api/files", async (request, response, next) => {
+  try {
+    const take = Number.parseInt(request.query.take, 10);
+    const files = await listFiles({
+      userId: request.user.id,
+      take: Number.isSafeInteger(take) ? take : 50,
+    });
+
+    response.json(files);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get(
   "/api/projects/:projectId/files/:id",
   async (request, response, next) => {

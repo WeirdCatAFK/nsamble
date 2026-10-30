@@ -8,6 +8,8 @@ import {
   findConversationSession,
 } from "../../resources/db/conversation-sessions.js";
 import { createMessage } from "../../resources/db/conversation-messages.js";
+import { findFile } from "../../resources/db/files.js";
+import { readContent } from "../../resources/minio/files.js";
 import {
   findActiveModelById,
   findActiveModelBySlug,
@@ -121,17 +123,64 @@ function extractOutputText(output) {
   return null;
 }
 
+const MAX_INLINE_IMAGE_BYTES = 10 * 1024 * 1024;
+
+async function loadImageParts({ userId, projectId, attachments }) {
+  const parts = [];
+  const meta = [];
+  for (const fileId of attachments) {
+    const file = await findFile({ id: fileId, userId, projectId });
+    if (!file) {
+      throw new ModelConversationError(
+        "Attached file was not found.",
+        "EATTACHMENT",
+      );
+    }
+    if (!file.mimeType?.startsWith("image/")) {
+      throw new ModelConversationError(
+        "Only image attachments are supported.",
+        "EATTACHMENT",
+      );
+    }
+    if (file.size > MAX_INLINE_IMAGE_BYTES) {
+      throw new ModelConversationError(
+        "Attached image is too large.",
+        "EATTACHMENT",
+      );
+    }
+    const content = await readContent(file.contentHash);
+    if (!content) {
+      throw new ModelConversationError(
+        "Attached file content is missing.",
+        "EATTACHMENT",
+      );
+    }
+    const chunks = [];
+    for await (const chunk of content.stream) chunks.push(chunk);
+    const base64 = Buffer.concat(chunks).toString("base64");
+    parts.push({
+      type: "input_image",
+      image_url: `data:${file.mimeType};base64,${base64}`,
+      detail: "auto",
+    });
+    meta.push({ fileId: file.id, name: file.name, mimeType: file.mimeType });
+  }
+  return { parts, meta };
+}
+
 export async function sendConversationInput({
   userId,
   projectId,
   sessionId,
   input,
+  attachments = [],
   tools = [],
   toolExecutors = new Map(),
   onEvent = () => {},
 }) {
   try {
-    if (typeof input !== "string" || input.trim().length === 0) {
+    const userText = typeof input === "string" ? input : "";
+    if (userText.trim().length === 0 && attachments.length === 0) {
       throw new ModelConversationError(
         "Input must be a non-empty string.",
         "EINPUT",
@@ -164,7 +213,17 @@ export async function sendConversationInput({
       throw new ModelConversationError("Model is not active.", "EMODEL");
     }
 
-    await createMessage({ sessionId: session.id, role: "USER", content: { text: input } });
+    const { parts: imageParts, meta: attachmentMeta } = await loadImageParts({
+      userId,
+      projectId,
+      attachments,
+    });
+
+    await createMessage({
+      sessionId: session.id,
+      role: "USER",
+      content: { text: userText, attachments: attachmentMeta },
+    });
 
     const orchestrator = await loadRole("orchestrator");
 
@@ -173,11 +232,26 @@ export async function sendConversationInput({
     const isExpiredResponse = (err) =>
       /referenced response|not found|expired/i.test(err.message);
 
+    const providerInput = imageParts.length === 0
+      ? userText
+      : [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: userText || "Describe what you see in these images.",
+            },
+            ...imageParts,
+          ],
+        },
+      ];
+
     let lastResponse;
     try {
       lastResponse = await createToolResponse({
         model: model.slug,
-        input,
+        input: providerInput,
         previousResponseId: session.previousResponseId,
         tools,
         instructions: orchestrator.systemPrompt,
@@ -186,7 +260,7 @@ export async function sendConversationInput({
       if (session.previousResponseId && isExpiredResponse(err)) {
         lastResponse = await createToolResponse({
           model: model.slug,
-          input,
+          input: providerInput,
           tools,
           instructions: orchestrator.systemPrompt,
         });
@@ -196,7 +270,10 @@ export async function sendConversationInput({
     }
 
     const allUsage = { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
-    const conversationLog = [{ role: "user", content: input }];
+    const conversationLog = typeof providerInput === "string"
+      ? [{ role: "user", content: userText }]
+      : [...providerInput];
+    let awaitingUser = false;
 
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
       const usage = usageFromResponse(lastResponse.usage);
@@ -260,6 +337,12 @@ export async function sendConversationInput({
         ...toolOutputs.map((t) => ({ role: "tool", tool_call_id: t.call_id, content: t.output })),
       );
 
+      if (functionCalls.some((call) => call.name === "ask_user")) {
+        awaitingUser = true;
+        onEvent({ type: "status", message: "Waiting for your answers..." });
+        break;
+      }
+
       onEvent({ type: "status", message: `Analyzing results (round ${round + 2})...` });
 
       try {
@@ -283,10 +366,12 @@ export async function sendConversationInput({
       }
     }
 
-    const finalUsage = usageFromResponse(lastResponse.usage);
-    allUsage.inputTokens += finalUsage.inputTokens;
-    allUsage.cachedInputTokens += finalUsage.cachedInputTokens;
-    allUsage.outputTokens += finalUsage.outputTokens;
+    if (!awaitingUser) {
+      const finalUsage = usageFromResponse(lastResponse.usage);
+      allUsage.inputTokens += finalUsage.inputTokens;
+      allUsage.cachedInputTokens += finalUsage.cachedInputTokens;
+      allUsage.outputTokens += finalUsage.outputTokens;
+    }
 
     const costs = costsForUsage(model, allUsage);
 
@@ -323,8 +408,9 @@ export async function sendConversationInput({
       }
     });
 
-    const text =
-      lastResponse.output_text ?? extractOutputText(lastResponse.output);
+    const text = awaitingUser
+      ? null
+      : (lastResponse.output_text ?? extractOutputText(lastResponse.output));
 
     if (text) {
       await createMessage({ sessionId: session.id, role: "ASSISTANT", content: { text } });
@@ -333,6 +419,7 @@ export async function sendConversationInput({
     return {
       responseId: lastResponse.id,
       text,
+      awaitingUser,
       usage: { ...allUsage, ...costs },
     };
   } catch (error) {

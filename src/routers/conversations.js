@@ -52,11 +52,23 @@ router.post(
   "/api/projects/:projectId/conversations/:sessionId/messages",
   async (request, response, next) => {
     try {
-      const { message } = request.body;
+      const { message, attachments } = request.body;
+      const files = attachments ?? [];
 
-      if (!message || typeof message !== "string") {
-        return response.status(400).json({ error: "message is required." });
+      if (
+        !Array.isArray(files) ||
+        files.some((item) => !item || typeof item.fileId !== "string")
+      ) {
+        return response.status(400).json({ error: "attachments must be a list of { fileId }." });
       }
+
+      const text = typeof message === "string" ? message : "";
+
+      if (!text.trim() && files.length === 0) {
+        return response.status(400).json({ error: "message or attachments required." });
+      }
+
+      const attachmentIds = files.map((item) => item.fileId);
 
       const wantsStream = request.headers.accept === "text/event-stream";
 
@@ -85,7 +97,8 @@ router.post(
           userId: request.user.id,
           projectId: request.params.projectId,
           sessionId: request.params.sessionId,
-          input: message,
+          input: text,
+          attachments: attachmentIds,
           tools,
           toolExecutors,
           onEvent,
@@ -98,7 +111,8 @@ router.post(
           userId: request.user.id,
           projectId: request.params.projectId,
           sessionId: request.params.sessionId,
-          input: message,
+          input: text,
+          attachments: attachmentIds,
           tools,
           toolExecutors,
         });

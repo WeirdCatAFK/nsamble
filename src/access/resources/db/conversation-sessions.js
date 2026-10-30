@@ -86,3 +86,28 @@ export function endConversationSession(
     });
   }
 }
+
+export function listAllSessionsByProject({ projectId }, database = prisma) {
+  try {
+    return database.conversationSession.findMany({
+      where: { projectId },
+      select: { id: true, parentSessionId: true },
+    });
+  } catch (error) {
+    throw new Error(errLevel + " " + error.message, {
+      cause: error,
+    });
+  }
+}
+
+export function deleteSessionsByIds({ ids }, database = prisma) {
+  try {
+    return database.conversationSession.deleteMany({
+      where: { id: { in: ids } },
+    });
+  } catch (error) {
+    throw new Error(errLevel + " " + error.message, {
+      cause: error,
+    });
+  }
+}

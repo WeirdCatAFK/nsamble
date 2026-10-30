@@ -46,3 +46,13 @@ export function listProjects({ ownerId }, database = prisma) {
     throw new Error(errLevel + error.message, { cause: error });
   }
 }
+
+export function deleteProject({ id, ownerId }, database = prisma) {
+  try {
+    return database.project.deleteMany({
+      where: { id, ownerId },
+    });
+  } catch (error) {
+    throw new Error(errLevel + error.message, { cause: error });
+  }
+}

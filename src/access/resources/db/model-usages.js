@@ -25,3 +25,15 @@ export function listModelUsageByBillingSession(
     throw new Error(errLevel + error.message, { cause: error });
   }
 }
+
+export function deleteModelUsageByProject({ projectId }, database = prisma) {
+  try {
+    return database.modelUsage.deleteMany({
+      where: {
+        OR: [{ session: { projectId } }, { billingSession: { projectId } }],
+      },
+    });
+  } catch (error) {
+    throw new Error(errLevel + error.message, { cause: error });
+  }
+}

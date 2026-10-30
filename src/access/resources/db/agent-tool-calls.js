@@ -58,3 +58,27 @@ export function createSearchSources({ toolCallId, sources }, database = prisma) 
     });
   }
 }
+
+export function deleteSearchSourcesByProject({ projectId }, database = prisma) {
+  try {
+    return database.searchSource.deleteMany({
+      where: { toolCall: { agentRun: { projectId } } },
+    });
+  } catch (error) {
+    throw new Error(errLevel + " " + error.message, {
+      cause: error,
+    });
+  }
+}
+
+export function deleteToolCallsByProject({ projectId }, database = prisma) {
+  try {
+    return database.agentToolCall.deleteMany({
+      where: { agentRun: { projectId } },
+    });
+  } catch (error) {
+    throw new Error(errLevel + " " + error.message, {
+      cause: error,
+    });
+  }
+}

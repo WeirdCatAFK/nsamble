@@ -37,3 +37,13 @@ export function updateAgentRun({ id, data }, database = prisma) {
     });
   }
 }
+
+export function deleteAgentRunsByProject({ projectId }, database = prisma) {
+  try {
+    return database.agentRun.deleteMany({ where: { projectId } });
+  } catch (error) {
+    throw new Error(errLevel + " " + error.message, {
+      cause: error,
+    });
+  }
+}

@@ -5,6 +5,10 @@ import {
   listProjects,
   updateProject,
 } from "../access/resources/db/projects.js";
+import {
+  ProjectNotFoundError,
+  removeProject,
+} from "../access/modules/common/projects.js";
 
 const router = Router();
 
@@ -49,6 +53,21 @@ router.patch("/api/projects/:id", async (request, response, next) => {
     if (result.count === 0) return response.status(404).json({ error: "Project not found." });
     response.json({ ok: true });
   } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/api/projects/:id", async (request, response, next) => {
+  try {
+    await removeProject({ id: request.params.id, ownerId: request.user.id });
+    response.json({ ok: true });
+  } catch (error) {
+    if (error instanceof ProjectNotFoundError) {
+      return response.status(error.status).json({
+        error: error.message,
+        code: error.code,
+      });
+    }
     next(error);
   }
 });

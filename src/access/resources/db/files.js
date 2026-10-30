@@ -130,3 +130,26 @@ export function countFilesByHash(contentHash, database = prisma) {
     });
   }
 }
+
+export function listFileHashesByProject({ projectId }, database = prisma) {
+  try {
+    return database.file.findMany({
+      where: { projectId },
+      select: { contentHash: true },
+    });
+  } catch (error) {
+    throw new Error(errLevel + " " + error.message, {
+      cause: error,
+    });
+  }
+}
+
+export function deleteFilesByProject({ projectId }, database = prisma) {
+  try {
+    return database.file.deleteMany({ where: { projectId } });
+  } catch (error) {
+    throw new Error(errLevel + " " + error.message, {
+      cause: error,
+    });
+  }
+}

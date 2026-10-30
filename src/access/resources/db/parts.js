@@ -30,3 +30,11 @@ export function findPart({ id, projectId }, database = prisma) {
     throw new Error(errLevel + " " + error.message, { cause: error });
   }
 }
+
+export function deletePartsByProject({ projectId }, database = prisma) {
+  try {
+    return database.projectPart.deleteMany({ where: { projectId } });
+  } catch (error) {
+    throw new Error(errLevel + " " + error.message, { cause: error });
+  }
+}

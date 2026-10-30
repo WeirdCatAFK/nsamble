@@ -39,3 +39,15 @@ export function allMessagesBySession(sessionId, database = prisma) {
     });
   }
 }
+
+export function deleteMessagesBySessions({ sessionIds }, database = prisma) {
+  try {
+    return database.conversationMessage.deleteMany({
+      where: { sessionId: { in: sessionIds } },
+    });
+  } catch (error) {
+    throw new Error(errLevel + " " + error.message, {
+      cause: error,
+    });
+  }
+}

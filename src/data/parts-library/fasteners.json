@@ -135,6 +135,19 @@
     "referencePrice": { "amount": 0.07, "currency": "USD", "per": "unit" }
   },
   {
+    "id": "m4-washer",
+    "category": "fastener",
+    "name": "M4 Flat Washer",
+    "standard": "ISO 7089",
+    "dimensions": {
+      "inner_diameter_mm": 4.3,
+      "outer_diameter_mm": 9.0,
+      "thickness_mm": 0.8
+    },
+    "material": "steel",
+    "referencePrice": { "amount": 0.02, "currency": "USD", "per": "unit" }
+  },
+  {
     "id": "m4-hex-nut",
     "category": "fastener",
     "name": "M4 Hex Nut",
@@ -146,5 +159,157 @@
     },
     "material": "steel",
     "referencePrice": { "amount": 0.03, "currency": "USD", "per": "unit" }
+  },
+  {
+    "id": "m2-socket-head-bolt",
+    "category": "fastener",
+    "name": "M2 Socket Head Cap Screw",
+    "standard": "ISO 4762",
+    "dimensions": {
+      "thread": "M2",
+      "pitch_mm": 0.4,
+      "clearance_hole_mm": 2.4,
+      "close_fit_hole_mm": 2.2,
+      "head_diameter_mm": 3.8,
+      "head_height_mm": 2.0,
+      "hex_key_mm": 1.5
+    },
+    "variants": [
+      { "length_mm": 4 },
+      { "length_mm": 6 },
+      { "length_mm": 8 },
+      { "length_mm": 10 },
+      { "length_mm": 12 }
+    ],
+    "material": "steel",
+    "referencePrice": { "amount": 0.04, "currency": "USD", "per": "unit" }
+  },
+  {
+    "id": "m2-hex-nut",
+    "category": "fastener",
+    "name": "M2 Hex Nut",
+    "standard": "ISO 4032",
+    "dimensions": {
+      "thread": "M2",
+      "width_across_flats_mm": 4.0,
+      "height_mm": 1.6
+    },
+    "material": "steel",
+    "referencePrice": { "amount": 0.02, "currency": "USD", "per": "unit" }
+  },
+  {
+    "id": "m2-washer",
+    "category": "fastener",
+    "name": "M2 Flat Washer",
+    "standard": "ISO 7089",
+    "dimensions": {
+      "inner_diameter_mm": 2.2,
+      "outer_diameter_mm": 5.0,
+      "thickness_mm": 0.3
+    },
+    "material": "steel",
+    "referencePrice": { "amount": 0.01, "currency": "USD", "per": "unit" }
+  },
+  {
+    "id": "m2.5-socket-head-bolt",
+    "category": "fastener",
+    "name": "M2.5 Socket Head Cap Screw",
+    "standard": "ISO 4762",
+    "dimensions": {
+      "thread": "M2.5",
+      "pitch_mm": 0.45,
+      "clearance_hole_mm": 2.9,
+      "close_fit_hole_mm": 2.7,
+      "head_diameter_mm": 4.5,
+      "head_height_mm": 2.5,
+      "hex_key_mm": 2.0
+    },
+    "variants": [
+      { "length_mm": 4 },
+      { "length_mm": 6 },
+      { "length_mm": 8 },
+      { "length_mm": 10 },
+      { "length_mm": 12 },
+      { "length_mm": 16 }
+    ],
+    "material": "steel",
+    "referencePrice": { "amount": 0.04, "currency": "USD", "per": "unit" }
+  },
+  {
+    "id": "m2.5-hex-nut",
+    "category": "fastener",
+    "name": "M2.5 Hex Nut",
+    "standard": "ISO 4032",
+    "dimensions": {
+      "thread": "M2.5",
+      "width_across_flats_mm": 5.0,
+      "height_mm": 2.0
+    },
+    "material": "steel",
+    "referencePrice": { "amount": 0.02, "currency": "USD", "per": "unit" }
+  },
+  {
+    "id": "m2.5-washer",
+    "category": "fastener",
+    "name": "M2.5 Flat Washer",
+    "standard": "ISO 7089",
+    "dimensions": {
+      "inner_diameter_mm": 2.7,
+      "outer_diameter_mm": 6.0,
+      "thickness_mm": 0.5
+    },
+    "material": "steel",
+    "referencePrice": { "amount": 0.01, "currency": "USD", "per": "unit" }
+  },
+  {
+    "id": "m5-socket-head-bolt",
+    "category": "fastener",
+    "name": "M5 Socket Head Cap Screw",
+    "standard": "ISO 4762",
+    "dimensions": {
+      "thread": "M5",
+      "pitch_mm": 0.8,
+      "clearance_hole_mm": 5.5,
+      "close_fit_hole_mm": 5.3,
+      "head_diameter_mm": 8.5,
+      "head_height_mm": 5.0,
+      "hex_key_mm": 4.0
+    },
+    "variants": [
+      { "length_mm": 8 },
+      { "length_mm": 10 },
+      { "length_mm": 12 },
+      { "length_mm": 16 },
+      { "length_mm": 20 },
+      { "length_mm": 25 }
+    ],
+    "material": "steel",
+    "referencePrice": { "amount": 0.09, "currency": "USD", "per": "unit" }
+  },
+  {
+    "id": "m5-hex-nut",
+    "category": "fastener",
+    "name": "M5 Hex Nut",
+    "standard": "ISO 4032",
+    "dimensions": {
+      "thread": "M5",
+      "width_across_flats_mm": 8.0,
+      "height_mm": 4.7
+    },
+    "material": "steel",
+    "referencePrice": { "amount": 0.04, "currency": "USD", "per": "unit" }
+  },
+  {
+    "id": "m5-washer",
+    "category": "fastener",
+    "name": "M5 Flat Washer",
+    "standard": "ISO 7089",
+    "dimensions": {
+      "inner_diameter_mm": 5.5,
+      "outer_diameter_mm": 10.0,
+      "thickness_mm": 1.0
+    },
+    "material": "steel",
+    "referencePrice": { "amount": 0.02, "currency": "USD", "per": "unit" }
   }
 ]

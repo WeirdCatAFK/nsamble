@@ -1,0 +1,30 @@
+[
+  {
+    "id": "eia310-rail",
+    "category": "rack",
+    "name": "19-Inch Rack Rail",
+    "standard": "EIA-310",
+    "dimensions": {
+      "panel_width_mm": 482.6,
+      "mounting_centers_mm": 465.1,
+      "u_height_mm": 44.45,
+      "square_hole_mm": 9.5,
+      "max_chassis_width_mm": 437.0
+    }
+  },
+  {
+    "id": "cage-nut-m5",
+    "category": "rack",
+    "name": "M5 Cage Nut for 19-Inch Rack",
+    "standard": "EIA-310",
+    "dimensions": {
+      "thread": "M5",
+      "pitch_mm": 0.8,
+      "square_hole_mm": 9.5,
+      "cage_width_mm": 12.0,
+      "cage_length_mm": 16.0
+    },
+    "material": "steel",
+    "referencePrice": { "amount": 0.15, "currency": "USD", "per": "unit" }
+  }
+]

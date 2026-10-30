@@ -1,0 +1,67 @@
+[
+  {
+    "id": "fan-40mm",
+    "category": "fan",
+    "name": "40mm Case Fan",
+    "dimensions": {
+      "frame_mm": 40,
+      "depth_mm": 20,
+      "mounting_spacing_mm": 32.0,
+      "mounting_hole_diameter_mm": 4.3,
+      "mounting_hole_note": "Typical value. Check the fan datasheet before use."
+    },
+    "referencePrice": { "amount": 5.0, "currency": "USD", "per": "unit" }
+  },
+  {
+    "id": "fan-60mm",
+    "category": "fan",
+    "name": "60mm Case Fan",
+    "dimensions": {
+      "frame_mm": 60,
+      "depth_mm": 25,
+      "mounting_spacing_mm": 50.0,
+      "mounting_hole_diameter_mm": 4.3,
+      "mounting_hole_note": "Typical value. Check the fan datasheet before use."
+    },
+    "referencePrice": { "amount": 6.0, "currency": "USD", "per": "unit" }
+  },
+  {
+    "id": "fan-80mm",
+    "category": "fan",
+    "name": "80mm Case Fan",
+    "dimensions": {
+      "frame_mm": 80,
+      "depth_mm": 25,
+      "mounting_spacing_mm": 71.5,
+      "mounting_hole_diameter_mm": 4.3,
+      "mounting_hole_note": "Typical value. Check the fan datasheet before use."
+    },
+    "referencePrice": { "amount": 7.0, "currency": "USD", "per": "unit" }
+  },
+  {
+    "id": "fan-92mm",
+    "category": "fan",
+    "name": "92mm Case Fan",
+    "dimensions": {
+      "frame_mm": 92,
+      "depth_mm": 25,
+      "mounting_spacing_mm": 82.5,
+      "mounting_hole_diameter_mm": 4.3,
+      "mounting_hole_note": "Typical value. Check the fan datasheet before use."
+    },
+    "referencePrice": { "amount": 8.0, "currency": "USD", "per": "unit" }
+  },
+  {
+    "id": "fan-120mm",
+    "category": "fan",
+    "name": "120mm Case Fan",
+    "dimensions": {
+      "frame_mm": 120,
+      "depth_mm": 25,
+      "mounting_spacing_mm": 105.0,
+      "mounting_hole_diameter_mm": 4.3,
+      "mounting_hole_note": "Typical value. Check the fan datasheet before use."
+    },
+    "referencePrice": { "amount": 8.0, "currency": "USD", "per": "unit" }
+  }
+]

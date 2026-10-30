@@ -27,6 +27,26 @@ export const parameters = {
             items: { type: "string" },
             description: "Selectable answer options. The user can also type a custom answer.",
           },
+          qualityPick: {
+            type: "object",
+            description: "The best-performance recommendation with its price and reason.",
+            properties: {
+              label: { type: "string" },
+              price: { type: "string" },
+              reason: { type: "string" },
+            },
+            required: ["label", "reason"],
+          },
+          costPick: {
+            type: "object",
+            description: "The lowest-cost recommendation with its price and reason.",
+            properties: {
+              label: { type: "string" },
+              price: { type: "string" },
+              reason: { type: "string" },
+            },
+            required: ["label", "reason"],
+          },
         },
         required: ["question"],
       },

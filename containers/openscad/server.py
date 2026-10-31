@@ -1,10 +1,13 @@
 """Thin HTTP wrapper around the OpenSCAD CLI."""
 import json
 import base64
+import struct
 import subprocess
 import tempfile
 import os
+import zlib
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from typing import Optional
 
 try:
     import trimesh
@@ -20,6 +23,129 @@ VIEWS = {
 }
 
 MAX_VALIDATE_BYTES = 20_000_000
+
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+BLANK_FRACTION_DENOM = 10_000
+BLANK_MIN_PIXELS = 16
+
+
+def _paeth_predictor(a, b, c):
+    p = a + b - c
+    pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+    if pa <= pb and pa <= pc:
+        return a
+    if pb <= pc:
+        return b
+    return c
+
+
+def is_blank_png(data):
+    # type: (bytes) -> Optional[bool]
+    """Check whether a PNG holds visible geometry.
+
+    Returns True when the image is a single flat color, False when any
+    region differs from the background, and None when the bytes cannot
+    be decoded as a plain (non-interlaced) PNG.
+    """
+    if len(data) < 8 or data[:8] != PNG_SIGNATURE:
+        return None
+
+    width = height = bitdepth = colortype = None
+    comp_method = filter_method = interlace = 0
+    idat = bytearray()
+    pos = 8
+    try:
+        while pos + 8 <= len(data):
+            (length,) = struct.unpack(">I", data[pos:pos + 4])
+            ctype = data[pos + 4:pos + 8]
+            payload = data[pos + 8:pos + 8 + length]
+            if len(payload) < length:
+                return None
+            if ctype == b"IHDR" and length == 13:
+                width, height = struct.unpack(">II", payload[:8])
+                bitdepth, colortype = payload[8], payload[9]
+                comp_method, filter_method, interlace = payload[10:13]
+            elif ctype == b"IDAT":
+                idat += payload
+            elif ctype == b"IEND":
+                break
+            pos += 12 + length
+    except struct.error:
+        return None
+
+    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}.get(colortype)
+    if (width is None or not idat or channels is None
+            or width <= 0 or height <= 0
+            or bitdepth not in (1, 2, 4, 8, 16)
+            or (colortype == 3 and bitdepth == 16)
+            or comp_method != 0 or filter_method != 0 or interlace != 0):
+        return None
+
+    try:
+        raw = zlib.decompress(bytes(idat))
+    except zlib.error:
+        return None
+
+    stride = (width * bitdepth * channels + 7) // 8
+    bpp = max(1, (bitdepth * channels) // 8)
+    if len(raw) < height * (stride + 1):
+        return None
+
+    pixbytes = (bitdepth * channels) // 8 if bitdepth >= 8 else 0
+    subbyte = bitdepth < 8
+
+    background = None
+    differing = 0
+    prev = bytearray(stride)
+    off = 0
+    for _ in range(height):
+        ftype = raw[off]
+        off += 1
+        if ftype > 4:
+            return None
+        cur = bytearray(raw[off:off + stride])
+        off += stride
+        for i in range(stride):
+            a = cur[i - bpp] if i >= bpp else 0
+            b = prev[i]
+            c = prev[i - bpp] if i >= bpp else 0
+            if ftype == 1:
+                cur[i] = (cur[i] + a) & 0xFF
+            elif ftype == 2:
+                cur[i] = (cur[i] + b) & 0xFF
+            elif ftype == 3:
+                cur[i] = (cur[i] + ((a + b) >> 1)) & 0xFF
+            elif ftype == 4:
+                cur[i] = (cur[i] + _paeth_predictor(a, b, c)) & 0xFF
+        if subbyte:
+            pixels = _unpack_subbyte_row(cur, width, bitdepth)
+        else:
+            pixels = [bytes(cur[i:i + pixbytes])
+                      for i in range(0, width * pixbytes, pixbytes)]
+        if background is None and pixels:
+            background = pixels[0]
+        for pixel in pixels:
+            if pixel != background:
+                differing += 1
+        prev = cur
+
+    total = width * height
+    if total == 0:
+        return None
+    return differing < max(BLANK_MIN_PIXELS, total // BLANK_FRACTION_DENOM)
+
+
+def _unpack_subbyte_row(row, width, bitdepth):
+    pixels = []
+    per_byte = 8 // bitdepth
+    mask = (1 << bitdepth) - 1
+    for byte in row:
+        for k in range(per_byte):
+            if len(pixels) >= width:
+                break
+            shift = 8 - (k + 1) * bitdepth
+            pixels.append((byte >> shift) & mask)
+    return pixels
 
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
@@ -75,13 +201,28 @@ class Handler(BaseHTTPRequestHandler):
                     )
                     if view_result.returncode != 0:
                         render_warnings.append(f"{view_name} view failed to render.")
+                        continue
                     elif view_result.stderr:
                         for line in view_result.stderr.strip().splitlines():
                             if "WARNING" in line:
                                 render_warnings.append(f"{view_name}: {line}")
                     if os.path.exists(view_png):
                         with open(view_png, "rb") as f:
-                            pngs[view_name] = base64.b64encode(f.read()).decode()
+                            png_bytes = f.read()
+                        blank = is_blank_png(png_bytes)
+                        if blank is True:
+                            render_warnings.append(
+                                f"{view_name} view rendered blank "
+                                "(no visible geometry); omitted from results."
+                            )
+                            continue
+                        if blank is None:
+                            render_warnings.append(
+                                f"{view_name} view produced an unreadable PNG; "
+                                "omitted from results."
+                            )
+                            continue
+                        pngs[view_name] = base64.b64encode(png_bytes).decode()
 
                 result = {
                     "stl": None,
@@ -117,6 +258,18 @@ class Handler(BaseHTTPRequestHandler):
                     for line in stl_result.stderr.strip().splitlines():
                         if "WARNING" in line:
                             result["warnings"].append(line)
+
+                if not pngs:
+                    if stl_result.returncode == 0:
+                        result["errors"].append(
+                            "All preview renders came back blank "
+                            "(no visible geometry in any view). The model "
+                            "compiled, so the camera failed to frame it."
+                        )
+                    else:
+                        result["errors"].append(
+                            "No usable preview renders were produced."
+                        )
 
             payload = json.dumps(result).encode()
             self.send_response(200)

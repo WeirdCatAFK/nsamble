@@ -1,4 +1,4 @@
-FROM openscad/openscad:latest
+FROM openscad/openscad:2021.01
 
 RUN sed -i 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g' /etc/apt/sources.list \
     && sed -i 's|http://security.debian.org|http://archive.debian.org|g' /etc/apt/sources.list \

@@ -24,6 +24,41 @@ export class AuthError extends Error {
   }
 }
 
+export function isTransientGoogleError(error) {
+  return /fetch failed|network|timed out|timeout|ECONNREFUSED|ECONNRESET|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|socket hang up|TLS|CERT/i.test(
+    error?.message ?? "",
+  );
+}
+
+export function classifyGoogleError(error) {
+  if (isTransientGoogleError(error)) {
+    return {
+      status: 503,
+      code: "EGOOGLE_UNREACHABLE",
+      publicMessage: "Google verification is unreachable. Try again.",
+    };
+  }
+  return { status: 401, code: "EGOOGLE", publicMessage: "Google authentication failed." };
+}
+
+async function verifyWithRetry(run) {
+  let lastError;
+  for (const delay of [0, 500, 1500]) {
+    if (delay > 0) {
+      await new Promise((resolvePromise) => {
+        setTimeout(resolvePromise, delay);
+      });
+    }
+    try {
+      return await run();
+    } catch (error) {
+      lastError = error;
+      if (!isTransientGoogleError(error)) throw error;
+    }
+  }
+  throw lastError;
+}
+
 export async function registerUser({ email, name, password }) {
   try {
     if (!email || typeof email !== "string") {
@@ -111,10 +146,12 @@ export async function googleLogin({ credential }) {
       throw new AuthError("Google OAuth is not configured.", "ECONFIG", 500);
     }
 
-    const ticket = await googleClient.verifyIdToken({
-      idToken: credential,
-      audience: clientId,
-    });
+    const ticket = await verifyWithRetry(() =>
+      googleClient.verifyIdToken({
+        idToken: credential,
+        audience: clientId,
+      }),
+    );
     const { sub: googleId, email, name, email_verified } = ticket.getPayload();
 
     let user = await findUserByGoogleId(googleId);
@@ -132,7 +169,9 @@ export async function googleLogin({ credential }) {
     return { user, token: signToken(user) };
   } catch (error) {
     if (error instanceof AuthError) throw error;
-    throw new AuthError("Google authentication failed.", "EGOOGLE", 401);
+    console.error("Google login failed:", error);
+    const { status, code, publicMessage } = classifyGoogleError(error);
+    throw new AuthError(publicMessage, code, status);
   }
 }
 

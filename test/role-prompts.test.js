@@ -12,9 +12,11 @@ async function loadPrompt(roleName) {
 }
 
 describe("orchestrator prompt", () => {
-  it("requires 15 to 50 clarifying questions across constraint categories", async () => {
+  it("insists on unique clarifying questions with a content-set amount", async () => {
     const prompt = await loadPrompt("orchestrator");
-    assert.ok(prompt.includes("15 to 50 clarifying questions"));
+    assert.ok(prompt.includes("Always ask"));
+    assert.ok(prompt.includes("Let the content set the amount"));
+    assert.ok(prompt.includes("Never repeat a question"));
     for (const category of ["dimensions", "materials", "assembly", "environment", "electrical", "scope"]) {
       assert.ok(prompt.includes(category), `missing category ${category}`);
     }
@@ -46,6 +48,45 @@ describe("geometry generator prompt", () => {
     assert.ok(prompt.includes("lands on solid material"));
     assert.ok(prompt.includes("bounding box"));
     assert.ok(prompt.includes("Count the comment lines"));
+  });
+});
+
+describe("spec planner prompt", () => {
+  it("requires a frozen JSON spec with library IDs and tags", async () => {
+    const prompt = await loadPrompt("spec-planner");
+    assert.ok(prompt.includes("Output ONLY the JSON spec"));
+    assert.ok(prompt.includes("library IDs"));
+    assert.ok(prompt.includes("function tags"));
+  });
+});
+
+describe("vision judge prompt", () => {
+  it("requires a JSON-only render verdict", async () => {
+    const prompt = await loadPrompt("vision-judge");
+    assert.ok(prompt.includes("Output ONLY the JSON verdict"));
+    assert.ok(prompt.includes("preview renders"));
+  });
+});
+
+describe("orchestrator pipeline prompt", () => {
+  it("freezes a spec first and judges on the stronger model", async () => {
+    const prompt = await loadPrompt("orchestrator");
+    assert.ok(prompt.includes("delegate to spec-planner"));
+    assert.ok(prompt.includes("muse-wonder"));
+  });
+
+  it("routes failures narrowly and binds measurements over opinion", async () => {
+    const prompt = await loadPrompt("orchestrator");
+    assert.ok(prompt.includes("Re-run only that stage"));
+    assert.ok(prompt.includes("the check wins"));
+  });
+
+  it("calls the render judge and the constraint checks by name", async () => {
+    const prompt = await loadPrompt("orchestrator");
+    assert.ok(prompt.includes("judge_part_renders"));
+    assert.ok(prompt.includes("check_constraints"));
+    assert.ok(prompt.includes("validate_geometry"));
+    assert.ok(prompt.includes("constraint-engine"));
   });
 });
 

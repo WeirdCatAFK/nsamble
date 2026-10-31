@@ -1,0 +1,74 @@
+[
+  {
+    "id": "t1-bracket-m3",
+    "tier": 1,
+    "prompt": "Make a bracket with two M3 holes.",
+    "must_catch": [
+      "M3 holes use the library clearance value, not a guessed diameter",
+      "Header is 3 lines or less with one doc block per module"
+    ]
+  },
+  {
+    "id": "t1-rack-ear",
+    "tier": 1,
+    "prompt": "Generate a 2U rack ear bracket pair with cage-nut holes and M4 chassis holes.",
+    "must_catch": [
+      "Transform math lands the base flat and each cutter on solid",
+      "M4 holes equal the library clearance value",
+      "Comment count follows the file rules"
+    ]
+  },
+  {
+    "id": "t2-pi-tray",
+    "tier": 2,
+    "prompt": "Generate a stackable Raspberry Pi 5 tray with M4 rail posts and interlock pegs.",
+    "must_catch": [
+      "Tray pitch clears Pi5 part height with margin",
+      "Peg walls meet the 1.2 mm minimum",
+      "Sockets exist for the pegs of the tray below",
+      "Board slab clears all posts",
+      "M2.5 mounts resolve to library IDs"
+    ]
+  },
+  {
+    "id": "t2-field-housing",
+    "tier": 2,
+    "prompt": "Generate a rugged field housing base for an ESP32-S3 DevKit with two 18650 cells, gasket groove, SMA hole, USB cutout, vent, and belt holes.",
+    "must_catch": [
+      "No lid bolt breaks the gasket ring",
+      "Cells fit the bay voids with contact room",
+      "Belt holes land on free floor",
+      "Board mounts match the real 69.2 by 25.5 board with no mounting holes"
+    ]
+  },
+  {
+    "id": "t3-demo-a-manifest",
+    "tier": 3,
+    "prompt": "Generate a custom casing that takes MicroATX motherboards and transforms office computers into rack-mountable units for an on-demand computer rental service. The design must fit a standard 19-inch server rack.",
+    "must_catch": [
+      "15 to 50 questions across all constraint categories",
+      "No two solid parts overlap in the manifest",
+      "Fasteners use library IDs"
+    ]
+  },
+  {
+    "id": "t3-demo-b-manifest",
+    "tier": 3,
+    "prompt": "Generate a stackable enclosure for Raspberry Pi boards with a fan on top. The enclosures connect to a custom power distribution board with sockets for each Pi. Design for a cluster of 8 units.",
+    "must_catch": [
+      "Fan fits the tray footprint",
+      "Install order gives each board a clear insertion path",
+      "Rod and nut dims come from the library"
+    ]
+  },
+  {
+    "id": "t3-demo-c-manifest",
+    "tier": 3,
+    "prompt": "Generate a carry-on device that stores sensor data in rough climates. It needs an environmental sensor and GPS module. The device sends location data so that explorers can recollect it later. It must operate on battery power for at least 72 hours.",
+    "must_catch": [
+      "Lid covers all ear bolt holes",
+      "Bolt lengths cover plate, ear, and nut stacks",
+      "Gasket seats in the base groove"
+    ]
+  }
+]

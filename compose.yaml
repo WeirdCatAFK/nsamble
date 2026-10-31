@@ -10,6 +10,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-secretpassword}@postgres:5432/${POSTGRES_DB:-nsamble}
       MINIO_ENDPOINT: http://minio:9000
       OPENSCAD_URL: http://openscad:8080
+      CONSTRAINT_URL: http://constraint-engine:8083
       SCANNER_URL: http://scanner:8000
     depends_on:
       postgres:
@@ -89,6 +90,18 @@ services:
       - "8080:8080"
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  constraint-engine:
+    build:
+      context: ./containers/constraint-engine
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8083/health')"]
       interval: 10s
       timeout: 5s
       retries: 5

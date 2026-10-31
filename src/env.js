@@ -50,6 +50,9 @@ export const env = Object.freeze({
   openscad: Object.freeze({
     url: optional("OPENSCAD_URL", "http://localhost:8080"),
   }),
+  constraintEngine: Object.freeze({
+    url: optional("CONSTRAINT_URL", "http://localhost:8083"),
+  }),
   kicad: Object.freeze({
     url: optional("KICAD_URL", "http://localhost:8081"),
   }),

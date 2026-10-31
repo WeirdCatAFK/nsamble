@@ -7,7 +7,7 @@ import {
   endConversationSession,
   findConversationSession,
 } from "../../resources/db/conversation-sessions.js";
-import { createMessage } from "../../resources/db/conversation-messages.js";
+import { allMessagesBySession, createMessage } from "../../resources/db/conversation-messages.js";
 import { findFile } from "../../resources/db/files.js";
 import { readContent } from "../../resources/minio/files.js";
 import {
@@ -168,6 +168,60 @@ async function loadImageParts({ userId, projectId, attachments }) {
   return { parts, meta };
 }
 
+export function findPendingChain(messages, previousResponseId) {
+  if (!previousResponseId) return null;
+  const match = messages.find(
+    (message) =>
+      Array.isArray(message?.content?.pendingOutputs) &&
+      message.content.pendingOutputs.length > 0 &&
+      message.content.pendingResponseId === previousResponseId,
+  );
+  return match ? match.content.pendingOutputs : null;
+}
+
+const RECOVERY_MESSAGE_LIMIT = 20;
+const RECOVERY_CALL_CHARS = 500;
+
+export function buildRecoveryInput({ messages, providerInput, userText }) {
+  const transcript = [];
+  for (const message of messages.slice(-RECOVERY_MESSAGE_LIMIT)) {
+    const content = message?.content;
+    if (!content || typeof content !== "object") continue;
+    if (message.role === "USER" && content.text) {
+      transcript.push({ role: "user", content: content.text });
+    } else if (message.role === "ASSISTANT" && content.text) {
+      transcript.push({ role: "assistant", content: content.text });
+    } else if (message.role === "TOOL" && Array.isArray(content.calls)) {
+      const calls = content.calls
+        .map((call) => {
+          const detail = `${call.name}(${JSON.stringify(call.args ?? {}).slice(0, RECOVERY_CALL_CHARS)}) -> ${String(call.result ?? call.error ?? "").slice(0, RECOVERY_CALL_CHARS)}`;
+          return detail;
+        })
+        .join("; ");
+      if (calls) transcript.push({ role: "assistant", content: `Tool round ${content.round ?? "?"}: ${calls}` });
+    }
+  }
+  if (typeof providerInput === "string") {
+    transcript.push({ role: "user", content: userText });
+  } else {
+    transcript.push(...providerInput);
+  }
+  return transcript;
+}
+
+export function buildChainedInput({ providerInput, pendingOutputs }) {
+  if (!pendingOutputs) return providerInput;
+  const outputs = pendingOutputs.map((output) => ({
+    type: "function_call_output",
+    call_id: output.call_id,
+    output: String(output.output ?? ""),
+  }));
+  if (typeof providerInput === "string") {
+    return [...outputs, { role: "user", content: providerInput }];
+  }
+  return [...outputs, ...providerInput];
+}
+
 export async function sendConversationInput({
   userId,
   projectId,
@@ -231,6 +285,7 @@ export async function sendConversationInput({
 
     const isExpiredResponse = (err) =>
       /referenced response|not found|expired/i.test(err.message);
+    const isMissingOutput = (err) => /no tool output found/i.test(err.message);
 
     const providerInput = imageParts.length === 0
       ? userText
@@ -247,11 +302,19 @@ export async function sendConversationInput({
         },
       ];
 
+    const priorMessages = await allMessagesBySession(session.id);
+    const pendingOutputs = findPendingChain(priorMessages, session.previousResponseId);
+    const chainedInput = buildChainedInput({ providerInput, pendingOutputs });
+    if (pendingOutputs) {
+      onEvent({ type: "status", message: "Resuming pending tool calls..." });
+    }
+
     let lastResponse;
+    let recoveredInput = null;
     try {
       lastResponse = await createToolResponse({
         model: model.slug,
-        input: providerInput,
+        input: chainedInput,
         previousResponseId: session.previousResponseId,
         tools,
         instructions: orchestrator.systemPrompt,
@@ -264,15 +327,25 @@ export async function sendConversationInput({
           tools,
           instructions: orchestrator.systemPrompt,
         });
+      } else if (session.previousResponseId && isMissingOutput(err)) {
+        onEvent({ type: "status", message: "Repairing conversation chain..." });
+        recoveredInput = buildRecoveryInput({ messages: priorMessages, providerInput, userText });
+        lastResponse = await createToolResponse({
+          model: model.slug,
+          input: recoveredInput,
+          tools,
+          instructions: orchestrator.systemPrompt,
+        });
       } else {
         throw err;
       }
     }
 
     const allUsage = { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
-    const conversationLog = typeof providerInput === "string"
+    const effectiveInput = recoveredInput ?? chainedInput;
+    const conversationLog = typeof effectiveInput === "string"
       ? [{ role: "user", content: userText }]
-      : [...providerInput];
+      : [...effectiveInput];
     let awaitingUser = false;
 
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
@@ -325,19 +398,28 @@ export async function sendConversationInput({
         };
       }
 
+      const toolOutputs = functionCalls.map((c) => c._toolOutput);
+      const roundAwaitingUser = functionCalls.some((call) => call.name === "ask_user");
+
       await createMessage({
         sessionId: session.id,
         role: "TOOL",
-        content: { round: round + 1, reasoning, calls: roundCalls },
+        content: {
+          round: round + 1,
+          reasoning,
+          calls: roundCalls,
+          pendingOutputs: roundAwaitingUser
+            ? toolOutputs.map((output) => ({ call_id: output.call_id, output: output.output }))
+            : null,
+          pendingResponseId: roundAwaitingUser ? lastResponse.id : null,
+        },
       });
-
-      const toolOutputs = functionCalls.map((c) => c._toolOutput);
       conversationLog.push(
         { role: "assistant", content: reasoning ?? "" },
         ...toolOutputs.map((t) => ({ role: "tool", tool_call_id: t.call_id, content: t.output })),
       );
 
-      if (functionCalls.some((call) => call.name === "ask_user")) {
+      if (roundAwaitingUser) {
         awaitingUser = true;
         onEvent({ type: "status", message: "Waiting for your answers..." });
         break;
@@ -364,6 +446,30 @@ export async function sendConversationInput({
           throw err;
         }
       }
+    }
+
+    const danglingCalls = awaitingUser ? [] : extractFunctionCalls(lastResponse.output);
+    if (danglingCalls.length > 0) {
+      const pendingOutputs = danglingCalls.map((call) => ({
+        call_id: call.call_id,
+        output: JSON.stringify({ error: "Tool round limit reached. The call was not executed." }),
+      }));
+      await createMessage({
+        sessionId: session.id,
+        role: "TOOL",
+        content: {
+          round: MAX_TOOL_ROUNDS + 1,
+          reasoning: null,
+          calls: danglingCalls.map((call) => ({
+            name: call.name,
+            args: call.arguments ? JSON.parse(call.arguments) : {},
+            result: null,
+            error: "Tool round limit reached.",
+          })),
+          pendingOutputs,
+          pendingResponseId: lastResponse.id,
+        },
+      });
     }
 
     if (!awaitingUser) {

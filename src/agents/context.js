@@ -1,9 +1,18 @@
-let _current = null;
+import { AsyncLocalStorage } from "node:async_hooks";
+
+const storage = new AsyncLocalStorage();
+
+export function runWithAgentContext(ctx, fn) {
+  return storage.run({ current: ctx ?? null }, fn);
+}
 
 export function setAgentContext(ctx) {
-  _current = ctx;
+  const store = storage.getStore();
+  if (store) {
+    store.current = ctx;
+  }
 }
 
 export function getAgentContext() {
-  return _current;
+  return storage.getStore()?.current ?? null;
 }

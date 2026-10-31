@@ -17,6 +17,7 @@ import {
 } from "../../resources/db/agent-tool-calls.js";
 import { createSearchSources } from "../../resources/db/agent-tool-calls.js";
 import { loadRole, getToolsForRole, buildToolsPayload } from "../../../agents/registry.js";
+import { getAgentContext, setAgentContext } from "../../../agents/context.js";
 
 const errLevel = "Error at module level in access:";
 const MAX_TOOL_ROUNDS = 10;
@@ -186,6 +187,13 @@ export async function runSubagent({ agentRunId, userId, projectId, onEvent = () 
         "ESTATUS",
       );
     }
+
+    const previousContext = getAgentContext();
+    setAgentContext({
+      userId: agentRun.userId,
+      projectId: agentRun.projectId,
+      parentSessionId: agentRun.parentSessionId,
+    });
 
     const session = agentRun.childSession;
     const model = session.model;
@@ -399,6 +407,8 @@ export async function runSubagent({ agentRunId, userId, projectId, onEvent = () 
         "ERUNFAILED",
         { cause: error },
       );
+    } finally {
+      setAgentContext(previousContext);
     }
   } catch (error) {
     if (error instanceof SubagentRunError) throw error;

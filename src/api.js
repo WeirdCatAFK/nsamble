@@ -1,5 +1,6 @@
 import "./env.js";
 import express from "express";
+import { agentScope } from "./middlewares/agent-scope.js";
 import { authenticate } from "./middlewares/auth.js";
 import healthRouter from "./routers/health.js";
 import authRouter from "./routers/auth.js";
@@ -14,6 +15,7 @@ export function createApi() {
   const app = express();
 
   app.use(express.json());
+  app.use(agentScope);
   app.use(healthRouter);
   app.use(authRouter);
   app.use(authenticate);

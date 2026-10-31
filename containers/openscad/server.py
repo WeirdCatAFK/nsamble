@@ -64,13 +64,21 @@ class Handler(BaseHTTPRequestHandler):
                 )
 
                 pngs = {}
+                render_warnings = []
                 for view_name, camera_arg in VIEWS.items():
                     view_png = os.path.join(tmp, f"{filename}_{view_name}.png")
-                    subprocess.run(
+                    view_result = subprocess.run(
                         ["xvfb-run", "-a", "openscad", "--render", "-o", view_png,
-                         camera_arg, "--imgsize=800,600", scad_path],
+                         camera_arg, "--autocenter", "--viewall",
+                         "--imgsize=800,600", scad_path],
                         capture_output=True, text=True, timeout=60,
                     )
+                    if view_result.returncode != 0:
+                        render_warnings.append(f"{view_name} view failed to render.")
+                    elif view_result.stderr:
+                        for line in view_result.stderr.strip().splitlines():
+                            if "WARNING" in line:
+                                render_warnings.append(f"{view_name}: {line}")
                     if os.path.exists(view_png):
                         with open(view_png, "rb") as f:
                             pngs[view_name] = base64.b64encode(f.read()).decode()
@@ -80,7 +88,7 @@ class Handler(BaseHTTPRequestHandler):
                     "png": pngs.get("isometric"),
                     "pngs": pngs,
                     "errors": [],
-                    "warnings": [],
+                    "warnings": render_warnings,
                 }
 
                 if stl_result.returncode != 0:
